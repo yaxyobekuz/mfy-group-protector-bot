@@ -28,7 +28,42 @@ aynan **kuzatuvga rozilik** ma'nosini bildiradi. Reyestrda bot
 tasodifan qo'shilgan, test va umuman begona guruhlar ham bor —
 ularning yozishmasini o'qish mumkin emas.
 
-### 2. Muammo yuborish
+### 2. Xavfsizlik qalqoni
+
+```
+zararli fayl/havola → bot O'CHIRADI → panelda dalil bilan ko'rinadi
+```
+
+⚠️ **O'chirish — yozish emas.** Bot guruhga ogohlantirish
+**yozmaydi**: na "zararli fayl o'chirildi", na boshqa javob. Aks
+holda o'sha xabar guruh yozishmasiga tushib, keyingi AI tahlilida
+"guruhda muammo bor" degan signalga aylanardi. Ma'muriyat nima
+bo'lganini **paneldan** ko'radi.
+
+⚠️ **Qalqon `isOfficial` ga bog'liq emas.** `isOfficial` —
+yozishmani **o'qishga** rozilik; qalqon esa aholini himoya qiladi.
+Guruh kuzatuvga yopiq bo'lsa ham undagi odamlarni virusdan himoya
+qilish mumkin, shuning uchun belgi alohida (`guardEnabled`).
+
+⚠️ **Standart holda o'chiq.** Ma'muriyat uni panelda ataylab
+yoqadi — o'chirilgan xabarni tiklab bo'lmaydi.
+
+Nima aniqlanadi (`features/guard/detect.ts`):
+
+| Tur | Misol |
+|---|---|
+| O'rnatma fayl | `.apk`, `.exe`, `.msi`, `.bat`, ikki kengaytmali nom |
+| Noma'lum fayl | arxivlar (`.zip`, `.rar`) — ichini bilib bo'lmaydi |
+| Qisqartirilgan havola | `bit.ly`, `t.co` — manzil ko'rinmaydi |
+| Yashirilgan manzil | `https://gov.uz@evil.com` |
+| Shubhali havola | qora ro'yxatdagi domen, IP manzil |
+
+⚠️ **Bot admin bo'lishi shart.** Aks holda Telegram o'chirishga
+ruxsat bermaydi va hodisa panelda "o'chirilmadi" deb ko'rinadi —
+bu holat **ataylab** ko'rsatiladi, aks holda ma'muriyat "himoya
+ishlayapti" deb o'ylab yuraverardi.
+
+### 3. Muammo yuborish
 
 ```
 📨 tugma → kategoriya tanlanadi → matn yoziladi → shtab paneliga tushadi

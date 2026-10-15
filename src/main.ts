@@ -3,12 +3,18 @@
  *
  * ── HANDLER TARTIBI MUHIM ─────────────────────────────────────────────
  *
- *   1. guruh kuzatuvi   — guruh/kanal xabarlari bu yerda TUGAYDI
- *   2. buyruqlar        — /start, /help (faqat shaxsiy chat)
- *   3. muammo oqimi     — kategoriya + matn
- *   4. tanilmagan matn  — "tushunilmadi"
+ *   1. xavfsizlik qalqoni — zararli xabar BU YERDA to'xtaydi
+ *   2. guruh kuzatuvi     — guruh/kanal xabarlari bu yerda TUGAYDI
+ *   3. buyruqlar          — /start, /help (faqat shaxsiy chat)
+ *   4. muammo oqimi       — kategoriya + matn
+ *   5. tanilmagan matn    — "tushunilmadi"
  *
- * ⚠️ GURUH KUZATUVI BIRINCHI: u guruh xabarlarini O'ZIDA to'xtatadi
+ * ⚠️ QALQON ENG BIRINCHI: zararli havolali xabar avval navbatga
+ * tushib, keyin o'chirilsa — matn baribir AI'ga borardi va signal
+ * sifatida panelda paydo bo'lardi. Ya'ni firibgarning matni rasmiy
+ * murojaatga aylanib ketishi mumkin edi.
+ *
+ * ⚠️ GURUH KUZATUVI IKKINCHI: u guruh xabarlarini O'ZIDA to'xtatadi
  * va keyingi handler'larga o'tkazmaydi. Aks holda guruhdagi "📨
  * Muammo yuborish" degan tasodifiy xabar oqimni GURUHDA ochib
  * yuborardi — bot esa u yerda hech narsa yozmasligi kerak.
@@ -21,6 +27,7 @@ import { initialSession, type BotContext, type SessionData } from "./shared/cont
 import { TEXTS } from "./shared/texts";
 import { mainMenu } from "./shared/keyboards";
 import { registerGroupWatch } from "./features/group-watch/handler";
+import { registerGuard } from "./features/guard/handler";
 import { registerIssueSubmit } from "./features/issue-submit/handler";
 import { registerStart } from "./features/start/handler";
 
@@ -44,7 +51,13 @@ bot.use(
 //  HANDLER'LAR
 // ═══════════════════════════════════════════════════════════════════
 
-// 1. Guruh kuzatuvi — guruh xabarlari BU YERDA tugaydi.
+// 1. Xavfsizlik qalqoni — zararli xabar BU YERDA to'xtaydi.
+//
+// ⚠️ KUZATUVDAN OLDIN: aks holda zararli matn navbatga tushib,
+// AI tahlilidan o'tib, panelda signal bo'lib paydo bo'lardi.
+registerGuard(bot);
+
+// 2. Guruh kuzatuvi — guruh xabarlari BU YERDA tugaydi.
 registerGroupWatch(bot);
 
 // ⚠️ QOLGAN HAMMASI FAQAT SHAXSIY CHATDA.
@@ -64,13 +77,13 @@ bot.use((ctx, next) => {
   return privateChat.middleware()(ctx, next);
 });
 
-// 2. Buyruqlar.
+// 3. Buyruqlar.
 registerStart(privateChat);
 
-// 3. Muammo oqimi.
+// 4. Muammo oqimi.
 registerIssueSubmit(privateChat);
 
-// 4. Tanilmagan matn — oxirgi handler.
+// 5. Tanilmagan matn — oxirgi handler.
 //
 // ⚠️ OXIRIDA TURADI: yuqoridagilar `next()` chaqirganda bu yerga
 // keladi. Yuqoriga qo'yilsa, har xabarga "tushunilmadi" deb javob

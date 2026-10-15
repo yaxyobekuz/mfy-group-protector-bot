@@ -159,6 +159,52 @@ export const captureMessage = (payload: {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+//  XAVFSIZLIK QALQONI
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * ⚠️ QORA/OQ RO'YXAT SERVERDAN KELADI, botda saqlanmaydi: panelda
+ * domen qo'shilganda botni qayta joylashtirish kerak bo'lmasligi
+ * uchun. Botda Prisma yo'q, ya'ni u bazani o'zi o'qiy olmaydi.
+ */
+export interface GuardConfig {
+  guardEnabled: boolean;
+  deleteFiles: boolean;
+  deleteUrls: boolean;
+  blockedHosts: string[];
+  allowedHosts: string[];
+}
+
+export const getGuardConfig = (chatId: string) =>
+  request<GuardConfig>(`/bot/security/config/${encodeURIComponent(chatId)}`);
+
+export interface ThreatPayload {
+  chatId: string;
+  messageId?: string;
+  kind: string;
+  action: "deleted" | "detected" | "delete_failed";
+  senderTgId?: string;
+  senderName?: string;
+  senderUsername?: string;
+  fileName?: string;
+  fileMime?: string;
+  fileSize?: number;
+  fileUniqueId?: string;
+  url?: string;
+  urlHost?: string;
+  reason: string;
+  messageText?: string;
+  errorMessage?: string;
+  sentAt?: number;
+}
+
+export const reportThreat = (payload: ThreatPayload) =>
+  request<{ id?: string; recorded?: boolean; skipped?: boolean }>(
+    "/bot/security/events",
+    { method: "POST", body: payload },
+  );
+
+// ═══════════════════════════════════════════════════════════════════
 //  MUAMMOLAR
 // ═══════════════════════════════════════════════════════════════════
 
