@@ -57,6 +57,13 @@ Nima aniqlanadi (`features/guard/detect.ts`):
 | Qisqartirilgan havola | `bit.ly`, `t.co` — manzil ko'rinmaydi |
 | Yashirilgan manzil | `https://gov.uz@evil.com` |
 | Shubhali havola | qora ro'yxatdagi domen, IP manzil |
+| Firibgarlik matni | "davlat yordami" aldovi — **havola bilan birga** |
+
+⚠️ **Firibgarlik matni IKKI dalil talab qiladi**: ibora **va**
+ishonchsiz tashqi havola. Havolasiz xabar hech qachon o'chirilmaydi —
+"yordam", "ariza", "ma'lumotlaringizni kiriting" MFY guruhining
+oddiy so'zlari va raisning haqiqiy e'loni ham shundan tuzilgan.
+Oq ro'yxatdagi domenga ketadigan havola dalil hisoblanmaydi.
 
 ⚠️ **Bot admin bo'lishi shart.** Aks holda Telegram o'chirishga
 ruxsat bermaydi va hodisa panelda "o'chirilmadi" deb ko'rinadi —
