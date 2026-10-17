@@ -58,6 +58,7 @@ Nima aniqlanadi (`features/guard/detect.ts`):
 | Yashirilgan manzil | `https://gov.uz@evil.com` |
 | Shubhali havola | qora ro'yxatdagi domen, IP manzil |
 | Firibgarlik matni | "davlat yordami" aldovi — **havola bilan birga** |
+| Yashirin havola | matnda `gov.uz`, gipermurojaatda `...xyz` |
 
 ⚠️ **Firibgarlik matni IKKI dalil talab qiladi**: ibora **va**
 ishonchsiz tashqi havola. Havolasiz xabar hech qachon o'chirilmaydi —

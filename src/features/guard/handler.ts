@@ -33,7 +33,7 @@ import type { Composer } from "grammy";
 
 import { getGuardConfig, reportThreat, type GuardConfig } from "../../shared/api";
 import type { BotContext } from "../../shared/context";
-import { inspectFile, inspectText, type ThreatVerdict } from "./detect";
+import { inspectFile, inspectText, inspectUrl, type ThreatVerdict } from "./detect";
 
 const GROUP_TYPES = new Set(["group", "supergroup", "channel"]);
 
@@ -132,8 +132,61 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
      * tekshirish noto'g'ri ishga tushishlarni ko'paytirardi.
      */
 
+    /**
+     * ── YASHIRIN HAVOLA (ENTITY) ─────────────────────────────────
+     *
+     * ⚠️ TELEGRAM HAVOLANI MATNDAN AJRATIB SAQLAYDI. Firibgar
+     * matnga `gov.uz/vplt` deb yozib, HAQIQIY manzilni
+     * gipermurojaat ichiga yashiradi (`text_link` entity):
+     *
+     *     ko'rinadi  →  gov.uz/vplt
+     *     ochiladi   →  https://uzbekistan.uzbekistonviplata.xyz/
+     *
+     * Matnning O'ZIDA bu manzil UMUMAN YO'Q, ya'ni faqat matnni
+     * tekshirish firibgarning asosiy quroliga ko'r bo'lardi —
+     * HAQIQIY xabar aynan shu yo'l bilan o'tib ketdi.
+     *
+     * ⚠️ MATN BILAN BIRGA, O'RNIGA EMAS: matnda ochiq havola ham
+     * bo'lishi mumkin.
+     */
+    /**
+     * ⚠️ IKKALASI HAM BIRLASHTIRILADI: matnli xabarda `entities`,
+     * rasm/video izohida esa `caption_entities` to'ladi. Faqat
+     * bittasini o'qish skrinshotdagi kabi RASMLI xabarni
+     * o'tkazib yuborardi.
+     */
+    const entities = [
+      ...(message.entities ?? []),
+      ...(message.caption_entities ?? []),
+    ];
+    const hiddenUrls = entities
+      .map((entity) =>
+        entity.type === "text_link"
+          ? entity.url
+          : entity.type === "url"
+            ? text.slice(entity.offset, entity.offset + entity.length)
+            : null,
+      )
+      .filter((url): url is string => Boolean(url));
+
+    if (!verdict && hiddenUrls.length > 0) {
+      for (const url of hiddenUrls) {
+        verdict = inspectUrl(url, config);
+        if (verdict) break;
+      }
+    }
+
     if (!verdict && text) {
-      verdict = inspectText(text, config);
+      /**
+       * ⚠️ YASHIRIN HAVOLALAR MATNGA QO'SHIB UZATILADI: "ikki
+       * dalil" qoidasi uchun ular ham HAVOLA sifatida
+       * hisoblanishi kerak — aks holda "ibora bor, lekin
+       * matnda havola yo'q" deb xabar o'tkazib yuborilardi.
+       */
+      verdict = inspectText(
+        hiddenUrls.length > 0 ? `${text}\n${hiddenUrls.join("\n")}` : text,
+        config,
+      );
     }
 
     // Toza xabar — kuzatuvga o'tadi.
