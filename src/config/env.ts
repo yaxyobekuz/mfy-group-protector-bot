@@ -17,6 +17,11 @@ const required = (key: string): string => {
   return value;
 };
 
+const optional = (key: string): string | undefined => {
+  const value = process.env[key]?.trim();
+  return value ? value : undefined;
+};
+
 const int = (key: string, fallback: number): number => {
   const raw = process.env[key]?.trim();
   if (!raw) return fallback;
@@ -40,6 +45,18 @@ export const config = {
   botApiKey: required("BOT_API_KEY"),
 
   apiTimeoutMs: int("API_TIMEOUT_MS", 15_000),
+
+  /**
+   * MINI APP MANZILI (HTTPS).
+   *
+   * ⚠️ MAJBURIY EMAS: bo'lmasa menyu tugmasi QO'YILMAYDI va bot
+   * baribir ishlaydi (guruh kuzatuvi, qalqon). Mini App'ni ulash —
+   * qo'shimcha imkoniyat.
+   *
+   * ⚠️ MENYU TUGMASI UCHUN BotFather KERAK EMAS — `setChatMenuButton`
+   * oddiy Bot API chaqiruvi (CLAUDE.md).
+   */
+  mobileAppUrl: optional("MOBILE_APP_URL"),
 
   nodeEnv: process.env.NODE_ENV?.trim() || "development",
 } as const;

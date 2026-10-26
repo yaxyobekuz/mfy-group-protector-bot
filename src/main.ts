@@ -139,6 +139,30 @@ const start = async (): Promise<void> => {
     { scope: { type: "all_private_chats" } },
   );
 
+  // ── MINI APP MENYU TUGMASI ──────────────────────────────────────
+  //
+  // ⚠️ FAQAT `MOBILE_APP_URL` BO'LGANDA: usiz tugma QO'YILMAYDI va bot
+  // baribir ishlaydi. BotFather KERAK EMAS — bu oddiy Bot API chaqiruvi.
+  //
+  // ⚠️ `web_app` manzili HTTPS bo'lishi SHART (Telegram talabi). Dev'da
+  // `node tools/mini-app-tunnel.mjs` buni to'rtta joyga yozadi.
+  if (config.mobileAppUrl) {
+    try {
+      await bot.api.setChatMenuButton({
+        menu_button: {
+          type: "web_app",
+          text: "Murojaat yuborish",
+          web_app: { url: config.mobileAppUrl },
+        },
+      });
+      console.log(`Mini App menyu tugmasi: ${config.mobileAppUrl}`);
+    } catch (error) {
+      // ⚠️ YIQILMAYDI: menyu tugmasi qo'shimcha — guruh kuzatuvi va
+      // qalqon undan mustaqil ishlaydi.
+      console.warn(`Menyu tugmasi o'rnatilmadi: ${(error as Error).message}`);
+    }
+  }
+
   await bot.start({
     // ⚠️ `my_chat_member` SO'RALISHI SHART: u standart
     // `allowed_updates` ro'yxatida YO'Q va so'ralmasa guruh
