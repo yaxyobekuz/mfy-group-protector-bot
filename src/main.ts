@@ -6,8 +6,11 @@
  *   1. xavfsizlik qalqoni — zararli xabar BU YERDA to'xtaydi
  *   2. guruh kuzatuvi     — guruh/kanal xabarlari bu yerda TUGAYDI
  *   3. buyruqlar          — /start, /help (faqat shaxsiy chat)
- *   4. muammo oqimi       — kategoriya + matn
- *   5. tanilmagan matn    — "tushunilmadi"
+ *   4. bekor qilish       — HAR QANDAY oqimni to'xtatadi
+ *   5. murojaatlarim      — ro'yxat (oqimsiz, bitta tugma)
+ *   6. profil             — hudud/telefon oqimi
+ *   7. murojaat oqimi     — matn → yo'nalish → surat → joy → tasdiq
+ *   8. tanilmagan xabar   — "tushunilmadi"
  *
  * ⚠️ QALQON ENG BIRINCHI: zararli havolali xabar avval navbatga
  * tushib, keyin o'chirilsa — matn baribir AI'ga borardi va signal
@@ -28,7 +31,10 @@ import { TEXTS } from "./shared/texts";
 import { mainMenu } from "./shared/keyboards";
 import { registerGroupWatch } from "./features/group-watch/handler";
 import { registerGuard } from "./features/guard/handler";
-import { registerIssueSubmit } from "./features/issue-submit/handler";
+import { registerAppeal } from "./features/appeal/handler";
+import { registerCancel } from "./features/cancel/handler";
+import { registerMyAppeals } from "./features/my-appeals/handler";
+import { registerProfile } from "./features/profile/handler";
 import { registerStart } from "./features/start/handler";
 
 const bot = new Bot<BotContext>(config.botToken);
@@ -80,15 +86,44 @@ bot.use((ctx, next) => {
 // 3. Buyruqlar.
 registerStart(privateChat);
 
-// 4. Muammo oqimi.
-registerIssueSubmit(privateChat);
+// 4. Bekor qilish.
+//
+// ⚠️ BEKOR QILISH OQIMLARDAN OLDIN: u HAR QANDAY oqimni to'xtatadi
+// va oqim handler'laridan keyin qo'yilsa, profil oqimi uni "tuman
+// nomi" deb tekshirib, tugma jim ishlamay qolardi
+// (`cancel/handler.ts` izohi).
+registerCancel(privateChat);
 
-// 5. Tanilmagan matn — oxirgi handler.
+// 5. Murojaatlarim — oqimsiz, faqat bitta tugma.
+registerMyAppeals(privateChat);
+
+// 6. Profil — hudud va telefon oqimi.
+//
+// ⚠️ MUROJAAT OQIMIDAN OLDIN: ikkisi ham `message:text` ni tinglaydi
+// va profil oqimi FAOL bo'lganda yozilgan matn (tuman nomi) murojaat
+// matni bo'lib ketmasligi kerak. Profil handler'i o'z holati
+// bo'lmasa `next()` chaqiradi — ya'ni murojaat oqimiga yo'l ochiq
+// qoladi.
+registerProfile(privateChat);
+
+// 7. Murojaat oqimi — asosiy imkoniyat.
+registerAppeal(privateChat);
+
+// 8. Tanilmagan xabar — oxirgi handler.
 //
 // ⚠️ OXIRIDA TURADI: yuqoridagilar `next()` chaqirganda bu yerga
 // keladi. Yuqoriga qo'yilsa, har xabarga "tushunilmadi" deb javob
 // berib, qolgan handler'larga navbat tegmasdi.
+// ⚠️ OQIM FAOL BO'LSA HOLAT TOZALANADI. Bu yerga yetib kelgan xabar
+// faol oqimning HECH BIR qadamiga to'g'ri kelmadi (masalan, profil
+// oqimida ro'yxatda yo'q tuman nomi yozildi). O'shanda asosiy menyu
+// ko'rsatilib, holat sessiyada QOLDIRILSA, fuqaro menyuni ko'rib
+// turib, yozgan har matni yana o'sha oqimga tushardi — chiqib
+// bo'lmaydigan holat.
 privateChat.on("message", async (ctx) => {
+  delete ctx.session.appeal;
+  delete ctx.session.profile;
+
   await ctx.reply(TEXTS.UNKNOWN, { reply_markup: mainMenu() });
 });
 

@@ -205,37 +205,160 @@ export const reportThreat = (payload: ThreatPayload) =>
   );
 
 // ═══════════════════════════════════════════════════════════════════
-//  MUAMMOLAR
+//  FUQARO — MUROJAAT OQIMI
 // ═══════════════════════════════════════════════════════════════════
 
-export interface LinkStatus {
-  linked: boolean;
+/**
+ * ⚠️ BOT FUQARONI "BOG'LAMAYDI": `telegramId` har so'rovda yuboriladi
+ * va server fuqaroni O'ZI topadi yoki yaratadi. Botda `citizenId`
+ * saqlanmaydi — u sessiyada turganda, sessiya o'chganda (qayta ishga
+ * tushish) oqim uzilib qolardi, va eng yomoni: bot aytgan id ga
+ * ishonish `X-Bot-Key` tarqalganda begona murojaat yozish yo'li
+ * bo'lardi.
+ *
+ * ⚠️ PROFIL HAM YUBORILADI: ism/username Telegram'da o'zgargan
+ * bo'lishi mumkin va panelda eski nom turib qolmasligi kerak.
+ */
+export interface CitizenIdentity {
+  telegramId: string;
   firstName?: string;
   lastName?: string;
-  districtName?: string | null;
+  username?: string;
+  languageCode?: string;
 }
 
-export const checkLink = (telegramId: string) =>
-  request<LinkStatus>("/bot/issues/link-check", {
+export interface CitizenProfile {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  phone: string | null;
+  districtId: string | null;
+  districtName: string | null;
+  mahallaId: string | null;
+  mahallaName: string | null;
+  points: number;
+  stats: { total: number; open: number; resolved: number };
+}
+
+export const citizenStart = (identity: CitizenIdentity) =>
+  request<CitizenProfile>("/bot/citizens/start", { method: "POST", body: identity });
+
+export const updateCitizenProfile = (
+  identity: CitizenIdentity,
+  profile: { phone?: string; districtId?: string; mahallaId?: string },
+) =>
+  request<CitizenProfile>("/bot/citizens/profile", {
     method: "POST",
-    body: { telegramId },
+    body: { ...identity, profile },
   });
 
 export interface Category {
   id: string;
   name: string;
   color: string | null;
+  description: string | null;
+  icon: string | null;
+  slaHours: number;
+  orgName: string | null;
 }
 
-export const getCategories = () =>
-  request<Category[]>("/bot/issues/categories");
+export const getCategories = () => request<Category[]>("/bot/citizens/categories");
 
-export const submitIssue = (payload: {
-  telegramId: string;
-  chatId: string;
+export interface Territory {
+  districts: { id: string; name: string }[];
+  mahallas: { id: string; name: string; districtId: string }[];
+}
+
+export const getTerritory = () => request<Territory>("/bot/citizens/territory");
+
+/**
+ * AI YO'NALISH TAKLIFI.
+ *
+ * ⚠️ `token` IMZOLANGAN va murojaat yaratishda QAYTARILADI: foizni
+ * bot o'zgartira olmaydi. Mijoz aytgan qiymatga ishonilsa, panelda
+ * "AI 94% ishonch bilan shuni aytgan" degan SOXTA dalil paydo
+ * bo'lardi (CLAUDE.md).
+ *
+ * ⚠️ `suggestion: null` — XATO EMAS: taklif QULAYLIK va usiz ham
+ * oqim davom etadi (fuqaro ro'yxatdan o'zi tanlaydi).
+ */
+export interface AiSuggestion {
+  categoryId: string;
+  categoryName: string;
+  confidence: number;
+  priority: string;
+  slaHours: number;
+  orgName: string | null;
+}
+
+export const analyzeBody = (identity: CitizenIdentity, body: string) =>
+  request<{ suggestion: AiSuggestion | null; token: string | null }>(
+    "/bot/citizens/appeals/analyze",
+    { method: "POST", body: { ...identity, analyze: { body } } },
+  );
+
+/**
+ * TELEGRAM FAYLINI SERVER YUKLAB OLADI.
+ *
+ * ⚠️ BOT BAYTLARNI O'ZI TASHIMAYDI: faqat `file_id` uzatadi. Aks
+ * holda bir xil fayl tarmoqdan IKKI marta o'tardi va 25 MB gacha
+ * video bot xotirasida turardi.
+ */
+export const uploadFile = (identity: CitizenIdentity, fileId: string) =>
+  request<{ token: string; kind: string; url: string; size: number }>(
+    "/bot/citizens/uploads",
+    { method: "POST", body: { ...identity, fileId } },
+  );
+
+export interface AppealPayload {
   categoryId: string;
   body: string;
-}) => request<{ publicNo: string; id: string }>("/bot/issues", {
-  method: "POST",
-  body: payload,
-});
+  districtId?: string;
+  mahallaId?: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  isHazard?: boolean;
+  isLongStanding?: boolean;
+  isRepeatAppeal?: boolean;
+  attachments?: string[];
+  analysisToken?: string;
+}
+
+export const createAppeal = (identity: CitizenIdentity, appeal: AppealPayload) =>
+  request<{
+    id: string;
+    publicNo: string;
+    createdAt: string;
+    dueAt: string | null;
+    categoryName: string;
+    orgName: string | null;
+    slaHours: number;
+  }>("/bot/citizens/appeals", { method: "POST", body: { ...identity, appeal } });
+
+export interface AppealListItem {
+  id: string;
+  publicNo: string;
+  title: string;
+  status: string;
+  address: string | null;
+  createdAt: string;
+  dueAt: string | null;
+  category: { id: string; name: string; icon: string | null };
+  photos: string[];
+  commentCount: number;
+  timeline: { key: string; label: string; done: boolean }[];
+}
+
+export const listAppeals = (identity: CitizenIdentity, status?: string) =>
+  request<{
+    items: AppealListItem[];
+    total: number;
+    counts: { all: number; open: number; resolved: number; rejected: number };
+  }>("/bot/citizens/appeals/list", { method: "POST", body: { ...identity, status } });
+
+export const getAppeal = (identity: CitizenIdentity, id: string) =>
+  request<Record<string, unknown>>(
+    `/bot/citizens/appeals/${encodeURIComponent(id)}`,
+    { method: "POST", body: identity },
+  );
