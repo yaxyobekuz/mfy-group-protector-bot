@@ -67,7 +67,7 @@ export const TEXTS = {
       `Assalomu alaykum, ${name}!`,
       "",
       "Bu bot orqali <b>muammo va murojaatlaringizni</b> to'g'ridan-to'g'ri",
-      "viloyat shtabiga yuborishingiz mumkin.",
+      "E Murojaat tizimiga yuborishingiz mumkin.",
       "",
       "Murojaatingiz ko'rib chiqiladi va <b>javob shu chatga</b> keladi.",
       "",
