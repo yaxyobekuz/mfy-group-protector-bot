@@ -25,8 +25,17 @@
 
 import type { Context, SessionFlavor } from "grammy";
 
-/** Oqim qaysi bosqichda turibdi. */
+/**
+ * Oqim qaysi bosqichda turibdi.
+ *
+ * ⚠️ `phone` ENG BIRINCHI QADAM va faqat KERAK BO'LGANDA paydo
+ * bo'ladi (fuqaroda raqam yo'q bo'lsa). Oxirida so'ralsa, odam butun
+ * matnni yozib, surat qo'yib, joyini ko'rsatib bo'lgandan keyin
+ * "raqam kerak" degan to'siqqa urilardi — va ko'pchiligi o'sha yerda
+ * tashlab ketardi.
+ */
 export type AppealStep =
+  | "phone"
   | "body"
   | "category"
   | "media"
@@ -50,6 +59,19 @@ export interface AppealDraft {
   categoryName?: string;
   categoryOrg?: string | null;
   categorySla?: number;
+
+  /**
+   * TANLANGAN ASOSIY YO'NALISH — IKKINCHI QADAM UCHUN.
+   *
+   * ⚠️ QIDIRUVNI TORAYTIRADI: ikkinchi qadamda faqat shu
+   * yo'nalishning bolalari qaraladi. Butun ro'yxatdan qidirilsa,
+   * bir xil nomli kichik yo'nalish noto'g'ri otaga tushib ketardi.
+   *
+   * ⚠️ YAKUNIY TANLOVDAN KEYIN TOZALANADI: u qolib ketsa, keyingi
+   * murojaatda birinchi qadam o'rniga kichik yo'nalishlar ro'yxati
+   * ochilardi.
+   */
+  parentId?: string;
 
   /** AI taklifi imzosi — `sourceMeta.ai` ga yoziladi. */
   analysisToken?: string;
@@ -78,6 +100,48 @@ export interface ProfileDraft {
   startedAt: number;
 }
 
+/**
+ * ADMIN TARQATMA OQIMI.
+ *
+ * ⚠️ FUQARO OQIMLARIDAN BUTUNLAY ALOHIDA MAYDON: bitta sessiyada
+ * ikkisi aralashsa, xodim tarqatma matnini yozib turib, u MUROJAAT
+ * bo'lib panelga tushib ketardi.
+ *
+ * ⚠️ HOLATDA RUXSAT SAQLANMAYDI: har qadamda server `telegramId`
+ * bo'yicha xodimni qayta topadi va huquqini tekshiradi. Sessiyada
+ * "men adminman" degan belgi tursa, panelda huquq olib tashlangandan
+ * keyin ham oqim davom etardi.
+ */
+export interface AdminDraft {
+  step: "audience" | "district" | "mahalla" | "content" | "mode" | "confirm";
+
+  audience?: "citizens" | "groups" | "both";
+
+  districtId?: string;
+  districtName?: string;
+  mahallaId?: string;
+  mahallaName?: string;
+
+  /** Matnli tarqatma uchun. */
+  message?: string;
+
+  /**
+   * ⚠️ UZATILADIGAN XABAR MANBASI — ADMINNING SHAXSIY CHATI. Telegram
+   * `forwardMessage`/`copyMessage` dan aynan shu juftlikni talab
+   * qiladi; baytlar bot orqali O'TMAYDI.
+   */
+  fromChatId?: string;
+  sourceMessageId?: string;
+
+  mode?: "text" | "forward" | "copy";
+
+  /** Tasdiq ekranida ko'rsatilgan sonlar — qayta so'ramaslik uchun. */
+  citizens?: number;
+  groups?: number;
+
+  startedAt: number;
+}
+
 export interface SessionData {
   /**
    * ⚠️ FAQAT BITTA OQIM: fuqaro bir vaqtda ikki murojaat yozmaydi.
@@ -85,6 +149,7 @@ export interface SessionData {
    */
   appeal?: AppealDraft;
   profile?: ProfileDraft;
+  admin?: AdminDraft;
 
   /**
    * MEDIA GURUHI (albom) BELGISI.

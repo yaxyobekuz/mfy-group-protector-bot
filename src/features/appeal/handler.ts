@@ -37,8 +37,10 @@ import type { Composer } from "grammy";
 
 import {
   analyzeBody,
+  citizenStart,
   createAppeal,
   getCategories,
+  updateCitizenProfile,
   uploadFile,
   type Category,
 } from "../../shared/api";
@@ -50,6 +52,7 @@ import {
   locationKeyboard,
   mainMenu,
   mediaKeyboard,
+  phoneKeyboard,
   reviewKeyboard,
   suggestionKeyboard,
 } from "../../shared/keyboards";
@@ -104,10 +107,60 @@ export const registerAppeal = (bot: Composer<BotContext>): void => {
     ctx.session.appeal = { step: "body", attachments: [], startedAt: Date.now() };
     delete ctx.session.profile;
 
+    /**
+     * ── TELEFON BIRINCHI ─────────────────────────────────────────
+     *
+     * ⚠️ OQIM BOSHIDA SO'RALADI, OXIRIDA EMAS. Server telefonsiz
+     * murojaatni RAD ETADI (`mobile.service.ts#create`) va agar
+     * tekshiruv oxirida bo'lsa, odam matnni yozib, surat qo'yib,
+     * joyini ko'rsatib bo'lgandan keyin to'siqqa urilardi — ko'pchilik
+     * o'sha yerda tashlab ketardi.
+     *
+     * ⚠️ TALAB SERVERDAN O'QILADI, botda qotib qolmaydi
+     * (`Settings.requirePhone`): sozlama panelda o'chirilsa, bot ham
+     * darhol so'ramay qo'yadi.
+     *
+     * ⚠️ SERVER YIQILSA OQIM TO'XTAMAYDI: profil olinmasa, raqam
+     * so'ralmaydi va murojaat odatdagidek davom etadi — oxirida
+     * server o'zi rad etadi va sabab fuqaroga ko'rsatiladi. "Server
+     * yo'q" degan holat fuqaroning murojaatini YO'QOTMASLIGI kerak.
+     */
+    const profile = await citizenStart(identityOf(ctx));
+
+    if (profile.ok && profile.data?.phoneNeeded) {
+      ctx.session.appeal.step = "phone";
+
+      await ctx.reply(TEXTS.APPEAL_ASK_PHONE, {
+        parse_mode: "HTML",
+        reply_markup: phoneKeyboard(),
+      });
+      return;
+    }
+
     await ctx.reply(TEXTS.ASK_BODY(BODY_MIN, BODY_MAX), {
       parse_mode: "HTML",
       reply_markup: cancelKeyboard(),
     });
+  });
+
+  // ═════════════════════════════════════════════════════════════════
+  //  TELEFON — 0-QADAM (faqat raqam bo'lmaganda)
+  // ═════════════════════════════════════════════════════════════════
+
+  /**
+   * ⚠️ TELEGRAM ULASHGAN RAQAM AFZAL: u TASDIQLANGAN va fuqaro terib
+   * xato qilmaydi. Qo'lda yozish ham qoldiriladi — ba'zi hisoblarda
+   * raqam ulanmagan bo'ladi (`profile/handler.ts` dagi ayni sabab).
+   */
+  bot.on("message:contact", async (ctx, next) => {
+    const draft = ctx.session.appeal;
+
+    // ⚠️ `next()` MAJBURIY: kontakt profil oqimiga ham tegishli
+    // bo'lishi mumkin va uni shu yerda yutib yuborish profil
+    // tugmasini JIM ishlamay qo'ydirardi.
+    if (!isAlive(draft) || draft.step !== "phone") return next();
+
+    await savePhoneAndContinue(ctx, draft, ctx.message.contact.phone_number);
   });
 
   // ═════════════════════════════════════════════════════════════════
@@ -214,6 +267,8 @@ export const registerAppeal = (bot: Composer<BotContext>): void => {
     if (!isAlive(draft)) return next();
 
     switch (draft.step) {
+      case "phone":
+        return savePhoneAndContinue(ctx, draft, text);
       case "body":
         return handleBody(ctx, draft, text);
       case "category":
@@ -231,6 +286,45 @@ export const registerAppeal = (bot: Composer<BotContext>): void => {
     }
   });
 };
+
+// ═══════════════════════════════════════════════════════════════════
+//  TELEFON — SAQLAYDI VA OQIMNI DAVOM ETTIRADI
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * ⚠️ TEKSHIRUV SERVERDA (`common/phone.ts`), BOTDA EMAS: botda
+ * ikkinchi nusxa bo'lsa, ikkisi albatta ajralib ketardi — bot qabul
+ * qilgan raqam serverda rad etilib, fuqaro sababini bilmay qolardi.
+ *
+ * ⚠️ XATO BO'LSA QADAM O'ZGARMAYDI: fuqaro raqamni qayta yozadi.
+ * Oqim boshiga qaytarilsa, u yozgan hamma narsa yo'qolardi.
+ */
+async function savePhoneAndContinue(
+  ctx: BotContext,
+  draft: AppealDraft,
+  raw: string,
+): Promise<void> {
+  const saved = await updateCitizenProfile(identityOf(ctx), { phone: raw.trim() });
+
+  if (!saved.ok) {
+    await ctx.reply(saved.error ?? TEXTS.PHONE_INVALID, {
+      parse_mode: "HTML",
+      reply_markup: phoneKeyboard(),
+    });
+    return;
+  }
+
+  draft.step = "body";
+
+  await ctx.reply(TEXTS.APPEAL_PHONE_SAVED(saved.data?.phone ?? raw.trim()), {
+    parse_mode: "HTML",
+  });
+
+  await ctx.reply(TEXTS.ASK_BODY(BODY_MIN, BODY_MAX), {
+    parse_mode: "HTML",
+    reply_markup: cancelKeyboard(),
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  FAYL QABULI — surat, video va hujjat uchun UMUMIY
@@ -353,10 +447,17 @@ async function handleBody(
     draft.categorySla = suggestion.slaHours;
     draft.analysisToken = analysis.data?.token ?? undefined;
 
-    await ctx.reply(TEXTS.AI_SUGGESTION(suggestion.categoryName, suggestion.orgName), {
-      parse_mode: "HTML",
-      reply_markup: suggestionKeyboard(),
-    });
+    await ctx.reply(
+      TEXTS.AI_SUGGESTION(
+        suggestion.categoryName,
+        suggestion.parentName,
+        suggestion.orgName,
+      ),
+      {
+        parse_mode: "HTML",
+        reply_markup: suggestionKeyboard(),
+      },
+    );
     return;
   }
 
@@ -398,11 +499,46 @@ async function askCategoryList(ctx: BotContext, draft: AppealDraft): Promise<voi
   draft.step = "category";
   delete draft.categoryId;
   delete draft.categoryName;
+  delete draft.parentId;
   delete draft.analysisToken;
+
+  /**
+   * ⚠️ BIRINCHI QADAMDA FAQAT ASOSIY YO'NALISHLAR. Ro'yxat endi
+   * ikki darajali va hammasi bitta ekranga chiqarilsa, 22 ta tugma
+   * bo'lardi — telefon ekranida uni o'qib bo'lmasdi.
+   *
+   * ⚠️ BOLASI YO'Q ASOSIY YO'NALISH HAM SHU YERDA ("Xavfsizlik",
+   * "Boshqa"): u o'zi yakuniy tanlov va ikkinchi qadam kerak emas.
+   */
+  const roots = list.filter((category) => !category.parentId);
 
   await ctx.reply(TEXTS.PICK_CATEGORY, {
     parse_mode: "HTML",
-    reply_markup: listKeyboard(list.map((category) => category.name)),
+    reply_markup: listKeyboard(roots.map((category) => category.name)),
+  });
+}
+
+/**
+ * IKKINCHI QADAM — KICHIK YO'NALISHLAR.
+ *
+ * ⚠️ "ORTGA" TUGMASI YO'Q va u kerak emas: fuqaro noto'g'ri
+ * asosiy yo'nalishni bosgan bo'lsa, ro'yxatda yo'q matn yozadi va
+ * `handleCategory` unga BIRINCHI qadamni qayta ko'rsatadi. Qo'shimcha
+ * tugma esa "Bekor qilish" bilan yonma-yon turib, chalkashlik
+ * tug'dirardi.
+ */
+async function askSubcategories(
+  ctx: BotContext,
+  draft: AppealDraft,
+  parent: Category,
+  children: Category[],
+): Promise<void> {
+  draft.step = "category";
+  draft.parentId = parent.id;
+
+  await ctx.reply(TEXTS.PICK_SUBCATEGORY(parent.name), {
+    parse_mode: "HTML",
+    reply_markup: listKeyboard(children.map((category) => category.name)),
   });
 }
 
@@ -434,19 +570,54 @@ async function handleCategory(
     return;
   }
 
-  const matched = findByName(categories.data ?? [], text);
+  const list = categories.data ?? [];
+
+  /**
+   * ⚠️ QIDIRUV QADAM BO'YICHA TORAYTIRILADI: ikkinchi qadamda
+   * faqat TANLANGAN asosiy yo'nalishning bolalari qaraladi. Butun
+   * ro'yxatdan qidirilsa, bir xil nomli kichik yo'nalish (masalan
+   * ikki bo'limdagi "Boshqa") noto'g'ri otaga tushib ketardi.
+   */
+  const scope = draft.parentId
+    ? list.filter((category) => category.parentId === draft.parentId)
+    : list.filter((category) => !category.parentId);
+
+  const matched = findByName(scope, text);
 
   if (!matched) {
     await ctx.reply(TEXTS.CATEGORY_NOT_FOUND, {
-      reply_markup: listKeyboard((categories.data ?? []).map((c) => c.name)),
+      reply_markup: listKeyboard(scope.map((c) => c.name)),
     });
     return;
+  }
+
+  /**
+   * ⚠️ ICHIDA KICHIK YO'NALISHLARI BOR — IKKINCHI QADAM OCHILADI.
+   * Bunday yo'nalish YAKUNIY tanlov bo'la olmaydi: tanlansa,
+   * bo'linishning ma'nosi yo'qolardi (server ham rad etadi).
+   */
+  if (matched.hasChildren) {
+    const children = list.filter((category) => category.parentId === matched.id);
+
+    if (children.length > 0) {
+      await askSubcategories(ctx, draft, matched, children);
+      return;
+    }
+
+    /**
+     * ⚠️ BOLALARI O'CHIRILGAN BO'LSA — OTANING O'ZI OLINADI.
+     * Bo'sh ro'yxat ko'rsatish fuqaroni boshi berk ko'chaga olib
+     * borardi, server esa baribir rad etardi va sababi
+     * tushunarsiz bo'lardi. (Bu holat ma'muriyat hamma kichik
+     * yo'nalishni o'chirganda yuzaga keladi.)
+     */
   }
 
   draft.categoryId = matched.id;
   draft.categoryName = matched.name;
   draft.categoryOrg = matched.orgName;
   draft.categorySla = matched.slaHours;
+  delete draft.parentId;
 
   await askMedia(ctx, draft);
 }

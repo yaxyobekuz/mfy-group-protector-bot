@@ -17,7 +17,7 @@
 
 import { Keyboard } from "grammy";
 
-import { BUTTONS } from "./texts";
+import { ADMIN_BUTTONS, BUTTONS } from "./texts";
 
 /** Asosiy menyu. */
 export const mainMenu = (): Keyboard =>
@@ -155,4 +155,91 @@ export const profileMenu = (): Keyboard =>
     .row()
     .text(BUTTONS.MY_ISSUES)
     .text(BUTTONS.HELP)
+    .resized();
+
+/* ══════════════════════════════════════════════════════════════════════
+ * ADMIN PANELI
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ ADMIN KLAVIATURASI FUQARO MENYUSINI ALMASHTIRADI, ustiga
+ * qo'shilmaydi: bitta ekranda ikki rol tugmalari turgan bo'lsa, xodim
+ * "Murojaat yuborish" ni bosib, fuqaro oqimiga tushib ketardi — va
+ * tarqatma matni murojaat bo'lib panelga tushardi.
+ */
+
+export const adminMenu = (): Keyboard =>
+  new Keyboard()
+    .text(ADMIN_BUTTONS.BROADCAST)
+    .row()
+    .text(ADMIN_BUTTONS.HISTORY)
+    .row()
+    .text(ADMIN_BUTTONS.EXIT)
+    .resized();
+
+/**
+ * ⚠️ "IKKALASIGA" ALOHIDA QATORDA: u eng keng qamrovli tanlov va
+ * qo'shni tugma bilan yonma-yon turganda tasodifan bosilardi.
+ */
+export const audienceKeyboard = (): Keyboard =>
+  new Keyboard()
+    .text(ADMIN_BUTTONS.TO_CITIZENS)
+    .row()
+    .text(ADMIN_BUTTONS.TO_GROUPS)
+    .row()
+    .text(ADMIN_BUTTONS.TO_BOTH)
+    .row()
+    .text(ADMIN_BUTTONS.EXIT)
+    .resized();
+
+/**
+ * Hudud ro'yxati — birinchi tugma "hammasi".
+ *
+ * ⚠️ `allLabel` BERILMASA KO'RSATILMAYDI: tuman qamrovli xodimda
+ * "Butun viloyat" tugmasi bo'lmasligi kerak — u bosilsa server 403
+ * qaytarardi va xodim sababini tushunmasdi.
+ */
+export const adminAreaKeyboard = (
+  names: string[],
+  allLabel: string | null,
+): Keyboard => {
+  const keyboard = new Keyboard();
+
+  if (allLabel) keyboard.text(allLabel).row();
+
+  for (let index = 0; index < names.length; index += 2) {
+    const left = names[index];
+    const right = names[index + 1];
+
+    if (left) keyboard.text(left);
+    if (right) keyboard.text(right);
+    keyboard.row();
+  }
+
+  return keyboard.text(ADMIN_BUTTONS.BACK).text(ADMIN_BUTTONS.EXIT).resized();
+};
+
+/** Xabar kutilayotgan bosqich — faqat ortga/chiqish. */
+export const adminContentKeyboard = (): Keyboard =>
+  new Keyboard().text(ADMIN_BUTTONS.BACK).text(ADMIN_BUTTONS.EXIT).resized();
+
+export const adminModeKeyboard = (): Keyboard =>
+  new Keyboard()
+    .text(ADMIN_BUTTONS.MODE_COPY)
+    .row()
+    .text(ADMIN_BUTTONS.MODE_FORWARD)
+    .row()
+    .text(ADMIN_BUTTONS.BACK)
+    .text(ADMIN_BUTTONS.EXIT)
+    .resized();
+
+/**
+ * ⚠️ TASDIQ TUGMASI YAKKA QATORDA: tarqatma qaytarib bo'lmaydigan
+ * amal va u "ortga" tugmasi bilan yonma-yon turmasligi kerak.
+ */
+export const adminConfirmKeyboard = (): Keyboard =>
+  new Keyboard()
+    .text(ADMIN_BUTTONS.CONFIRM)
+    .row()
+    .text(ADMIN_BUTTONS.BACK)
+    .text(ADMIN_BUTTONS.EXIT)
     .resized();

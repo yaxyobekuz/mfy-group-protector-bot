@@ -117,6 +117,15 @@ export interface MembershipPayload {
   status: string;
   canPostMessages?: boolean;
   canInviteUsers?: boolean;
+  /**
+   * ⚠️ QALQON SHUNGA BOG'LIQ: bot admin bo'lmasa yoki bu huquq
+   * berilmagan bo'lsa, zararli xabarni o'chira OLMAYDI. Panel
+   * "qalqon yoqilgan, lekin ishlamaydi" holatini aynan shu maydon
+   * orqali ko'rsatadi.
+   */
+  canDeleteMessages?: boolean;
+  /** Guruh a'zolari soni — panelda "obunachilar" sanog'i uchun. */
+  memberCount?: number;
   addedByTgId?: string;
 }
 
@@ -139,6 +148,12 @@ export const touchGroup = (payload: {
   type: string;
   title?: string;
   username?: string;
+  /**
+   * ⚠️ HAR XABARDA EMAS: a'zolar soni sekin o'zgaradi va har xabarda
+   * `getChatMemberCount` chaqirish Telegram chegarasini yeb qo'yardi.
+   * Handler uni bir necha soatda bir marta qo'shadi.
+   */
+  memberCount?: number;
 }) =>
   request<{ chatId: string; isOfficial?: boolean; skipped?: boolean }>(
     "/bot/groups/touch",
@@ -195,6 +210,12 @@ export interface ThreatPayload {
   reason: string;
   messageText?: string;
   errorMessage?: string;
+  /**
+   * ⚠️ `undefined` — "BILINMADI", `false` dan BOSHQA narsa: huquq
+   * so'rovi ham xato bergan holatni "huquq yo'q" deb yozish panelda
+   * yo'q muammo haqida ogohlantirish chiqarardi.
+   */
+  botCanDelete?: boolean;
   sentAt?: number;
 }
 
@@ -238,6 +259,17 @@ export interface CitizenProfile {
   mahallaName: string | null;
   points: number;
   stats: { total: number; open: number; resolved: number };
+
+  /**
+   * ⚠️ TALAB SERVERDAN KELADI, botda QOTIB QOLMAYDI: u sozlama
+   * (`Settings.requirePhone`) va panelda o'zgarishi mumkin. Botda
+   * `true` deb yozib qo'yilsa, sozlama o'chirilgandan keyin ham bot
+   * raqam so'rab turardi.
+   */
+  requirePhone: boolean;
+
+  /** ⚠️ Tayyor javob: "hozir, shu fuqarodan raqam so'rash kerakmi". */
+  phoneNeeded: boolean;
 }
 
 export const citizenStart = (identity: CitizenIdentity) =>
@@ -260,6 +292,23 @@ export interface Category {
   icon: string | null;
   slaHours: number;
   orgName: string | null;
+
+  /**
+   * ── IKKI DARAJALI RO'YXAT ───────────────────────────
+   *
+   * ⚠️ `parentId` — ASOSIY yo'nalish id'si (`null` — o'zi
+   * asosiy). Daraxt SERVERDA qurilmaydi: bot uni ikki qadamli
+   * TUGMA qilib ko'rsatadi, ilova esa ochiladigan ro'yxat qilib —
+   * tayyor daraxt ikkisiga ham to'g'ri kelmasdi.
+   *
+   * ⚠️ `selectable: false` — ICHIDA KICHIK YO'NALISHLARI BOR
+   * YO'NALISH. U birinchi qadamda ko'rinadi, lekin YAKUNIY tanlov
+   * bo'la olmaydi: tanlansa, bo'linishning ma'nosi yo'qolardi
+   * (server ham rad etadi).
+   */
+  parentId: string | null;
+  hasChildren: boolean;
+  selectable: boolean;
 }
 
 export const getCategories = () => request<Category[]>("/bot/citizens/categories");
@@ -285,10 +334,22 @@ export const getTerritory = () => request<Territory>("/bot/citizens/territory");
 export interface AiSuggestion {
   categoryId: string;
   categoryName: string;
+  /** ⚠️ Fuqaroga "Kommunal xizmatlar → Ichimlik suvi" deb ko'rsatiladi. */
+  parentName: string | null;
   confidence: number;
   priority: string;
   slaHours: number;
   orgName: string | null;
+  /**
+   * ── MUDDAT TAVSIYASI ───────────────────────────────
+   *
+   * ⚠️ FUQAROGA KO'RSATILADI, LEKIN MUDDATNI BELGILAMAYDI: muddat
+   * yo'nalish SLA'si yoki MFY qoidasidan chiqadi. Bu — AI ning
+   * matndan chiqargan BAHOSI va uni panelda XODIM qo'llaydi.
+   */
+  urgency: string;
+  urgencyLabel: string;
+  suggestedDueHours: number;
 }
 
 export const analyzeBody = (identity: CitizenIdentity, body: string) =>
@@ -361,4 +422,118 @@ export const getAppeal = (identity: CitizenIdentity, id: string) =>
   request<Record<string, unknown>>(
     `/bot/citizens/appeals/${encodeURIComponent(id)}`,
     { method: "POST", body: identity },
+  );
+
+// ═══════════════════════════════════════════════════════════════════
+//  ADMIN PANELI — XODIM UCHUN
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * ⚠️ XODIM `telegramId` BO'YICHA TOPILADI, bot aytgan `userId`
+ * bo'yicha EMAS — fuqaro endpoint'laridagi AYNI qoida
+ * (`bot-citizens.controller.ts`). Bot aytgan id ga ishonilsa,
+ * `X-Bot-Key` tarqalgan holatda istalgan odam o'zini viloyat egasi
+ * deb tanishtirib, butun aholiga xabar tarqata olardi.
+ *
+ * ⚠️ BOTDA RUXSAT TEKSHIRUVI YO'Q: u SERVERDA, har chaqiruvda.
+ * Botdagi tekshiruv faqat tugmani yashirardi, himoya bo'lmasdi.
+ */
+export interface AdminIdentity {
+  telegramId: string;
+}
+
+export interface AdminProfile {
+  firstName: string;
+  lastName: string;
+  districtName: string | null;
+  /** Viloyat bo'yicha yubora oladimi — "Butun viloyat" tugmasi shunga bog'liq. */
+  provinceWide: boolean;
+}
+
+export const adminMe = (telegramId: string) =>
+  request<AdminProfile>("/bot/admin/me", {
+    method: "POST",
+    body: { telegramId },
+  });
+
+export const adminTerritory = (telegramId: string) =>
+  request<Territory>("/bot/admin/territory", {
+    method: "POST",
+    body: { telegramId },
+  });
+
+export type BroadcastAudience = "citizens" | "groups" | "both";
+export type BroadcastMode = "text" | "forward" | "copy";
+
+export interface AudienceSize {
+  citizens: number;
+  groups: number;
+  total: number;
+}
+
+export const adminPreview = (
+  telegramId: string,
+  target: { audience: BroadcastAudience; districtId?: string; mahallaId?: string },
+) =>
+  request<AudienceSize>("/bot/admin/broadcasts/preview", {
+    method: "POST",
+    body: { telegramId, ...target },
+  });
+
+export interface BroadcastPayload {
+  audience: BroadcastAudience;
+  mode: BroadcastMode;
+  message?: string;
+  /**
+   * ⚠️ MANBA — ADMINNING SHAXSIY CHATI: Telegram `forwardMessage` va
+   * `copyMessage` uchun aynan shu (`from_chat_id`, `message_id`)
+   * juftligini talab qiladi. Baytlar bot orqali O'TMAYDI.
+   */
+  fromChatId?: string;
+  sourceMessageId?: string;
+  districtId?: string;
+  mahallaId?: string;
+}
+
+export const adminBroadcast = (telegramId: string, payload: BroadcastPayload) =>
+  request<{ id: string; status: string; createdAt: string }>("/bot/admin/broadcasts", {
+    method: "POST",
+    body: { telegramId, ...payload },
+  });
+
+export interface BroadcastItem {
+  id: string;
+  audience: BroadcastAudience;
+  mode: BroadcastMode;
+  text: string | null;
+  status: string;
+  total: number;
+  sent: number;
+  failed: number;
+  via: string;
+  createdAt: string;
+  district: { id: string; name: string } | null;
+  mahalla: { id: string; name: string } | null;
+}
+
+export const adminBroadcastList = (telegramId: string, limit = 5) =>
+  request<{ items: BroadcastItem[]; total: number }>("/bot/admin/broadcasts/list", {
+    method: "POST",
+    body: { telegramId, limit },
+  });
+
+/**
+ * TASHQI QORA RO'YXAT — URLhaus, PhishTank, AdGuard va h.k.
+ *
+ * ⚠️ `getGuardConfig` DAN ALOHIDA: u har guruh uchun, har 2 daqiqada
+ * so'raladi va 50 000 hostni har safar tashish tarmoqni bekorga band
+ * qilardi. Bu ro'yxat esa soatda bir marta kerak
+ * (`features/guard/blocklist.ts`).
+ *
+ * ⚠️ `since` — BOTDAGI VERSIYA: o'zgarmagan bo'lsa server
+ * `changed: false` qaytaradi va ro'yxatni YUBORMAYDI.
+ */
+export const getBlocklist = (since?: string) =>
+  request<{ version: string; changed: boolean; hosts: string[] }>(
+    `/bot/security/blocklist${since ? `?since=${encodeURIComponent(since)}` : ""}`,
   );

@@ -31,6 +31,7 @@
 import type { Composer } from "grammy";
 
 import { captureMessage, recordMembership, touchGroup } from "../../shared/api";
+import { forgetDeleteRight } from "../guard/delete-failure";
 import type { BotContext } from "../../shared/context";
 
 /**
@@ -67,6 +68,78 @@ const readCache = (chatId: string): boolean | null => {
   }
 
   return entry.isOfficial;
+};
+
+/**
+ * A'ZOLAR SONI QACHON QAYTA O'QILADI — `chatId` → `at`.
+ *
+ * ⚠️ HAR XABARDA SO'RALMAYDI: `getChatMemberCount` — ALOHIDA Telegram
+ * so'rovi va faol guruhda u xabarlar soniga tenglashardi. A'zolar
+ * soni esa sekin o'zgaradi, ya'ni 6 soatlik aniqlik yetarli.
+ *
+ * ⚠️ SON — PANELDAGI "OBUNACHILAR" SANOG'INING MANBASI. Telegram'da
+ * "bot qaysi guruhlarda, nechta odam bor" degan savolga javob
+ * beradigan boshqa yo'l yo'q.
+ */
+const MEMBER_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
+const memberCountAt = new Map<string, number>();
+
+/**
+ * A'zolar sonini QAYTARADI yoki `undefined` — muddati to'lmagan
+ * bo'lsa yoki so'rov xato bersa.
+ *
+ * ⚠️ XATO YUTILADI: a'zolar soni — QO'SHIMCHA ma'lumot va u
+ * olinmagani uchun kuzatuv to'xtamasligi kerak.
+ */
+const readMemberCount = async (
+  ctx: BotContext,
+  chatId: string,
+): Promise<number | undefined> => {
+  const last = memberCountAt.get(chatId);
+  if (last && Date.now() - last < MEMBER_COUNT_TTL_MS) return undefined;
+
+  // ⚠️ BELGI OLDIN QO'YILADI: so'rov xato bersa ham keyingi xabarda
+  // darhol qayta urinilmaydi (xato takrorlanib, chegarani yeb
+  // qo'yardi).
+  memberCountAt.set(chatId, Date.now());
+
+  try {
+    return await ctx.api.getChatMemberCount(chatId);
+  } catch (error) {
+    console.error(
+      `[group-watch] ${chatId} a'zolar soni o'qilmadi: ${(error as Error).message}`,
+    );
+    return undefined;
+  }
+};
+
+/**
+ * A'zolar soni — HOLAT O'ZGARGANDA (`my_chat_member`).
+ *
+ * ⚠️ MUDDAT TEKSHIRILMAYDI: bu hodisa kamdan-kam bo'ladi (bot
+ * qo'shildi/chiqarildi/admin bo'ldi) va aynan o'shanda son eng
+ * ishonchli yangilanadi.
+ *
+ * ⚠️ BOT CHIQARILGAN BO'LSA SO'RALMAYDI: Telegram begona guruhning
+ * a'zolar sonini bermaydi va so'rov baribir xato qaytarardi.
+ */
+const memberCountOf = async (
+  ctx: BotContext,
+  chatId: number,
+  status: string,
+): Promise<number | undefined> => {
+  if (status === "left" || status === "kicked") return undefined;
+
+  memberCountAt.set(String(chatId), Date.now());
+
+  try {
+    return await ctx.api.getChatMemberCount(chatId);
+  } catch (error) {
+    console.error(
+      `[group-watch] ${chatId} a'zolar soni o'qilmadi: ${(error as Error).message}`,
+    );
+    return undefined;
+  }
 };
 
 /**
@@ -108,6 +181,12 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
         member.status === "administrator" ? Boolean(member.can_post_messages) : false,
       canInviteUsers:
         member.status === "administrator" ? Boolean(member.can_invite_users) : false,
+      // ⚠️ QALQON AYNAN SHUNGA BOG'LIQ: huquq yo'q bo'lsa bot
+      // zararli xabarni o'chira olmaydi va panel buni KO'RSATISHI
+      // kerak — aks holda "himoya yoqilgan" deb o'ylab yurilardi.
+      canDeleteMessages:
+        member.status === "administrator" ? Boolean(member.can_delete_messages) : false,
+      memberCount: await memberCountOf(ctx, chat.id, member.status),
       addedByTgId: ctx.myChatMember.from?.id
         ? String(ctx.myChatMember.from.id)
         : undefined,
@@ -117,6 +196,12 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
     // bo'lsa, eski "rasmiy" qiymati bilan ishlashda davom etmasligi
     // kerak.
     officialCache.delete(chatId);
+
+    // ⚠️ HUQUQ KESHI HAM TASHLANADI: admin huquqi endigina
+    // berilgan bo'lsa, qalqon eski "huquq yo'q" xulosasi bilan
+    // ishlashda davom etmasligi kerak.
+    forgetDeleteRight(chatId);
+    memberCountAt.delete(chatId);
 
     if (!result.ok) {
       console.error(`[group-watch] ${chatId} reyestrga yozilmadi: ${result.error}`);
@@ -159,6 +244,10 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
         type: chat.type,
         title: "title" in chat ? chat.title : undefined,
         username: "username" in chat ? chat.username : undefined,
+        // ⚠️ `undefined` BO'LISHI ODATIY: son 6 soatda bir marta
+        // o'qiladi (`readMemberCount`) va server `undefined` ni
+        // "o'zgarmadi" deb tushunadi.
+        memberCount: await readMemberCount(ctx, chatId),
       });
 
       if (!touched.ok) {

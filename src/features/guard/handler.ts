@@ -33,6 +33,8 @@ import type { Composer } from "grammy";
 
 import { getGuardConfig, reportThreat, type GuardConfig } from "../../shared/api";
 import type { BotContext } from "../../shared/context";
+import { feedHosts, refreshBlocklist } from "./blocklist";
+import { diagnoseDeleteFailure } from "./delete-failure";
 import { inspectFile, inspectText, inspectUrl, type ThreatVerdict } from "./detect";
 
 const GROUP_TYPES = new Set(["group", "supergroup", "channel"]);
@@ -106,6 +108,22 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
     // aynan shu: ma'muriyat uni ATAYLAB yoqadi.
     if (!config.guardEnabled) return next();
 
+    /**
+     * ── TASHQI QORA RO'YXAT ─────────────────────────────
+     *
+     * ⚠️ `await` QILINMAYDI: guruh xabari qalqondan TEZ o'tishi
+     * kerak va ro'yxat yangilanishini kutib turish har soatda bitta
+     * xabarni sekinlashtirardi. Yangilanish fon'da ketadi, shu
+     * xabar esa ESKI ro'yxat bilan tekshiriladi — to'g'ri murosa.
+     *
+     * ⚠️ QALQON YOQILGAN GURUH BO'LGANDA CHAQIRILADI: bot
+     * qalqonsiz guruhlarda ham ishlaydi va ro'yxat u yerda umuman
+     * kerak emas.
+     */
+    refreshBlocklist();
+
+    const rules = { ...config, feedHosts: feedHosts() };
+
     // ── TEKSHIRUV ───────────────────────────────────────────────
     const message = ctx.message;
     const text = (message.text ?? message.caption ?? "").trim();
@@ -122,7 +140,7 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
     if (document) {
       verdict = inspectFile(
         { fileName: document.file_name, mime: document.mime_type },
-        config,
+        rules,
       );
     }
 
@@ -159,34 +177,55 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
       ...(message.entities ?? []),
       ...(message.caption_entities ?? []),
     ];
+
+    /**
+     * ⚠️ IKKI RO'YXAT ALOHIDA, BIR QOPDA EMAS — VA BU TUZATILGAN
+     * XATO:
+     *
+     *   `text_link` → manzil matnda KO'RINMAYDI (aldovning quroli)
+     *   `url`       → manzil matnning O'ZIDA turadi (halol havola)
+     *
+     * Avval ikkalasi birlashtirilib, matnga QO'SHIB uzatilardi va
+     * o'shanda "yashirilgan manzil" qoidasi matnga qo'shilgan
+     * manzilni "odam ko'rgan nom" deb o'qib qolardi. Natijada IIV
+     * ning firibgarlikka qarshi RASMIY ogohlantirishi — oxirida
+     * "Website | Telegram | Facebook …" qatori bor, ya'ni `gov.uz`
+     * ga ham, `t.me` ga ham havola qiladi — "ko'rinishda gov.uz,
+     * amalda t.me" deb o'chirishga urinilgan.
+     *
+     * Ya'ni qoida aldovni emas, HAVOLALAR SONINI o'qiyotgan edi.
+     */
     const hiddenUrls = entities
-      .map((entity) =>
-        entity.type === "text_link"
-          ? entity.url
-          : entity.type === "url"
-            ? text.slice(entity.offset, entity.offset + entity.length)
-            : null,
-      )
+      .filter((entity) => entity.type === "text_link")
+      .map((entity) => (entity as { url: string }).url)
       .filter((url): url is string => Boolean(url));
 
-    if (!verdict && hiddenUrls.length > 0) {
-      for (const url of hiddenUrls) {
-        verdict = inspectUrl(url, config);
+    const visibleUrls = entities
+      .filter((entity) => entity.type === "url")
+      .map((entity) => text.slice(entity.offset, entity.offset + entity.length))
+      .filter((url) => Boolean(url));
+
+    const entityUrls = [...visibleUrls, ...hiddenUrls];
+
+    if (!verdict && entityUrls.length > 0) {
+      for (const url of entityUrls) {
+        verdict = inspectUrl(url, rules);
         if (verdict) break;
       }
     }
 
     if (!verdict && text) {
       /**
-       * ⚠️ YASHIRIN HAVOLALAR MATNGA QO'SHIB UZATILADI: "ikki
-       * dalil" qoidasi uchun ular ham HAVOLA sifatida
-       * hisoblanishi kerak — aks holda "ibora bor, lekin
-       * matnda havola yo'q" deb xabar o'tkazib yuborilardi.
+       * ⚠️ YASHIRIN HAVOLALAR BARIBIR UZATILADI: "ikki dalil"
+       * qoidasi uchun ular ham HAVOLA sifatida hisoblanishi kerak —
+       * aks holda "ibora bor, lekin matnda havola yo'q" deb xabar
+       * o'tkazib yuborilardi. Faqat endi ular MATNGA
+       * ARALASHTIRILMAYDI.
        */
-      verdict = inspectText(
-        hiddenUrls.length > 0 ? `${text}\n${hiddenUrls.join("\n")}` : text,
-        config,
-      );
+      verdict = inspectText(text, rules, {
+        hidden: hiddenUrls,
+        visible: visibleUrls,
+      });
     }
 
     // Toza xabar — kuzatuvga o'tadi.
@@ -199,9 +238,15 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
     // yuklab olardi. Jurnal — ikkinchi darajali.
     let action: "deleted" | "delete_failed" = "deleted";
     let errorMessage: string | undefined;
+    /** Botda o'chirish huquqi bormi — panel shu bo'yicha ogohlantiradi. */
+    let botCanDelete: boolean | undefined;
 
     try {
       await ctx.api.deleteMessage(chat.id, message.message_id);
+
+      // ⚠️ MUVAFFAQIYAT HAM DALIL: huquq bor ekan va panel eski
+      // ogohlantirishni o'chirishi kerak.
+      botCanDelete = true;
     } catch (error) {
       /**
        * ⚠️ XATO YUTILMAYDI, QAYD ETILADI: bot admin bo'lmasa
@@ -209,10 +254,21 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
        * PANELDA ko'rinishi kerak — aks holda ma'muriyat "himoya
        * ishlayapti" deb o'ylab, zararli fayl guruhda qolib
        * ketardi.
+       *
+       * ⚠️ XOM MATN YETARLI EMAS. Telegram "message can't be
+       * deleted" deb yozadi va bu SABABNI aytmaydi — panelda
+       * aynan shu satr turardi. Endi bot huquqini o'qib, nima
+       * qilish kerakligini yozadi (`delete-failure.ts`).
        */
       action = "delete_failed";
-      errorMessage = (error as Error).message?.slice(0, 500);
-      console.error(`[guard] ${chatId} o'chirilmadi: ${errorMessage}`);
+
+      const failure = await diagnoseDeleteFailure(ctx, chat.id, error);
+      errorMessage = failure.message;
+      botCanDelete = failure.canDelete;
+
+      console.error(
+        `[guard] ${chatId} o'chirilmadi: ${(error as Error).message} → ${errorMessage}`,
+      );
     }
 
     const sender = ctx.from;
@@ -238,6 +294,7 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
       // yozilganini boshqa KO'RA OLMAYDI.
       messageText: text.slice(0, MAX_EVIDENCE) || undefined,
       errorMessage,
+      botCanDelete,
       sentAt: message.date,
     });
 

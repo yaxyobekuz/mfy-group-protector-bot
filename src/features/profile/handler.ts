@@ -109,9 +109,17 @@ export const registerProfile = (bot: Composer<BotContext>): void => {
    * fuqaro terib xato qilmaydi. Qo'lda yozish ham qoldiriladi —
    * ba'zi hisoblarda raqam ulanmagan bo'ladi.
    */
-  bot.on("message:contact", async (ctx) => {
+  bot.on("message:contact", async (ctx, next) => {
     const draft = ctx.session.profile;
-    if (!isAlive(draft) || draft.step !== "phone") return;
+
+    /**
+     * ⚠️ `next()` MAJBURIY, oddiy `return` EMAS. Bu handler
+     * `registerAppeal` DAN OLDIN ro'yxatdan o'tadi (`main.ts`) va jim
+     * to'xtatsa, murojaat oqimining TELEFON qadamiga ulashilgan
+     * kontakt umuman yetib bormasdi — tugma bosilardi, bot esa
+     * javob bermasdi.
+     */
+    if (!isAlive(draft) || draft.step !== "phone") return next();
 
     await savePhone(ctx, ctx.message.contact.phone_number);
   });
@@ -243,12 +251,21 @@ async function savePhone(ctx: BotContext, raw: string): Promise<void> {
 
   const saved = await updateCitizenProfile(identityOf(ctx), { phone });
 
-  delete ctx.session.profile;
-
   if (!saved.ok) {
-    await ctx.reply(saved.error ?? TEXTS.ERROR_GENERIC, { reply_markup: mainMenu() });
+    /**
+     * ⚠️ HOLAT SAQLANADI: raqam noto'g'ri bo'lsa fuqaro uni QAYTA
+     * yozishi kerak. Avval holat tozalanardi va u "bir marta
+     * urinib ko'rdim, bo'lmadi" degan boshi berk ko'chaga tushardi
+     * — tugma ham yo'qolardi.
+     */
+    await ctx.reply(saved.error ?? TEXTS.PHONE_INVALID, {
+      parse_mode: "HTML",
+      reply_markup: phoneKeyboard(),
+    });
     return;
   }
+
+  delete ctx.session.profile;
 
   await ctx.reply(TEXTS.PROFILE_SAVED, { reply_markup: profileMenu() });
 }

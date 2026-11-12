@@ -9,7 +9,8 @@
  *   4. bekor qilish       — HAR QANDAY oqimni to'xtatadi
  *   5. murojaatlarim      — ro'yxat (oqimsiz, bitta tugma)
  *   6. profil             — hudud/telefon oqimi
- *   7. murojaat oqimi     — matn → yo'nalish → surat → joy → tasdiq
+ *  6.5 admin paneli      — tarqatma (FAQAT xodim, /admin bilan)
+ *   7. murojaat oqimi     — telefon → matn → yo'nalish → surat → joy
  *   8. tanilmagan xabar   — "tushunilmadi"
  *
  * ⚠️ QALQON ENG BIRINCHI: zararli havolali xabar avval navbatga
@@ -29,6 +30,7 @@ import { config } from "./config/env";
 import { initialSession, type BotContext, type SessionData } from "./shared/context";
 import { TEXTS } from "./shared/texts";
 import { mainMenu } from "./shared/keyboards";
+import { registerAdmin } from "./features/admin/handler";
 import { registerGroupWatch } from "./features/group-watch/handler";
 import { registerGuard } from "./features/guard/handler";
 import { registerAppeal } from "./features/appeal/handler";
@@ -94,6 +96,19 @@ registerStart(privateChat);
 // (`cancel/handler.ts` izohi).
 registerCancel(privateChat);
 
+// 4.5. Admin paneli — XODIM uchun tarqatma oqimi.
+//
+// ⚠️ FUQARO OQIMLARIDAN OLDIN: tarqatma mazmuni ISTALGAN tur
+// bo'lishi mumkin (matn, surat, forward) va agar murojaat oqimi
+// avval tursa, xodim forward qilgan xabar MUROJAAT matni bo'lib
+// panelga tushib ketardi.
+//
+// ⚠️ OQIM FAOL BO'LMASA HECH NARSA QILMAYDI (`next()`): fuqaro yo'li
+// butunlay tegilmaydi. Panel faqat `/admin` bilan ochiladi va u
+// buyruqlar ro'yxatida KO'RINMAYDI — tanilmagan odam uchun bu
+// mavjud bo'lmagan buyruq.
+registerAdmin(privateChat);
+
 // 5. Murojaatlarim — oqimsiz, faqat bitta tugma.
 registerMyAppeals(privateChat);
 
@@ -123,6 +138,7 @@ registerAppeal(privateChat);
 privateChat.on("message", async (ctx) => {
   delete ctx.session.appeal;
   delete ctx.session.profile;
+  delete ctx.session.admin;
 
   await ctx.reply(TEXTS.UNKNOWN, { reply_markup: mainMenu() });
 });

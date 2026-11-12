@@ -129,12 +129,19 @@ export const TEXTS = {
    * tanlaydi. Shuning uchun matn SAVOL shaklida va ikkala yo'l ham
    * ochiq turadi (CLAUDE.md — "odam qarori oqimdan chiqmaydi").
    */
-  AI_SUGGESTION: (category: string, org: string | null) =>
+  /**
+   * ⚠️ ASOSIY YO'NALISH HAM KO'RSATILADI ("Kommunal xizmatlar →
+   * Ichimlik suvi"): yakka "Ichimlik suvi" degan taklif kontekstsiz
+   * qolardi va fuqaro uni "Tozalik" bilan adashtirishi mumkin edi.
+   */
+  AI_SUGGESTION: (category: string, parent: string | null, org: string | null) =>
     [
       "Murojaatingiz quyidagi yo'nalishga tegishli ko'rinadi:",
       "",
-      `📂 <b>${category}</b>`,
-      org ? `🏛 ${org}` : null,
+      parent
+        ? `📂 ${escapeHtml(parent)} → <b>${escapeHtml(category)}</b>`
+        : `📂 <b>${escapeHtml(category)}</b>`,
+      org ? `🏛 ${escapeHtml(org)}` : null,
       "",
       "To'g'rimi?",
     ]
@@ -142,6 +149,21 @@ export const TEXTS = {
       .join("\n"),
 
   PICK_CATEGORY: "Murojaat <b>yo'nalishini</b> tanlang:",
+
+  /**
+   * IKKINCHI QADAM — KICHIK YO'NALISH.
+   *
+   * ⚠️ TANLANGAN ASOSIY YO'NALISH NOMI QAYTA KO'RSATILADI: fuqaro
+   * ikki ekran o'tgandan keyin "men nimani bosgandim" degan savolga
+   * tushib qolmasligi kerak. Telegram'da oldingi xabar ko'rinmay
+   * ketishi mumkin.
+   */
+  PICK_SUBCATEGORY: (parent: string) =>
+    [
+      `📂 <b>${escapeHtml(parent)}</b>`,
+      "",
+      "Endi <b>aniqroq</b> yo'nalishni tanlang:",
+    ].join("\n"),
 
   /**
    * ⚠️ KATEGORIYA YO'Q — OQIM BOSHLANMAYDI. Serverda `categoryId`
@@ -338,12 +360,231 @@ export const TEXTS = {
 
   PROFILE_SAVED: "✅ Profilingiz yangilandi.",
 
+  /**
+   * ⚠️ RAQAM NOTO'G'RI — SABAB AYTILADI. "Xatolik yuz berdi" degan
+   * umumiy matn fuqaroga nima qilishni ko'rsatmasdi va u bir xil
+   * noto'g'ri raqamni qayta-qayta yuborardi.
+   */
+  PHONE_INVALID: [
+    "Raqam noto'g'ri ko'rinyapti. Namuna: <b>+998 90 123 45 67</b>",
+    "",
+    "<i>Pastdagi tugma orqali ulashish eng ishonchli yo'l.</i>",
+  ].join("\n"),
+
+  // ── MUROJAAT: TELEFON QADAMI ────────────────────────────────────
+  //
+  // ⚠️ SABAB AYTILADI, QURUQ TALAB QO'YILMAYDI. "Raqam majburiy"
+  // degan gap odamni botdan qaytarardi; "xodim shu raqam orqali
+  // bog'lanadi" esa nima uchun kerakligini tushuntiradi.
+  APPEAL_ASK_PHONE: [
+    "📞 <b>Avval telefon raqamingizni yuboring.</b>",
+    "",
+    "Murojaatingiz bo'yicha xodim siz bilan shu raqam orqali",
+    "bog'lanadi — shuning uchun u majburiy.",
+    "",
+    "Pastdagi tugmani bosing yoki raqamni yozing.",
+  ].join("\n"),
+
+  APPEAL_PHONE_SAVED: (phone: string) =>
+    `✅ Raqam saqlandi: <b>${escapeHtml(phone)}</b>`,
+
   // ── UMUMIY ──────────────────────────────────────────────────────
   UNKNOWN:
     "Tushunmadim. Pastdagi tugmalardan foydalaning yoki /start ni bosing.",
 
   ERROR_GENERIC: "Xatolik yuz berdi. Keyinroq qayta urinib ko'ring.",
 } as const;
+
+/* ══════════════════════════════════════════════════════════════════════
+ * ADMIN PANELI — XODIM UCHUN
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ BU MATNLAR `TEXTS` DAN ALOHIDA va bu ataylab: yuqoridagi to'plam
+ * FUQARO uchun ("bu yerda xodim, ruxsat degan matnlar yo'q" — fayl
+ * boshidagi izoh). Aralashtirilsa, fuqaro oqimiga xodim tili sizib
+ * kirardi.
+ *
+ * ⚠️ TUGMALARI HAM ALOHIDA va `MENU_VALUES` GA QO'SHILMAYDI: ular
+ * faqat admin oqimida ko'rinadi.
+ */
+
+export const ADMIN_BUTTONS = {
+  BROADCAST: "📢 Xabar yuborish",
+  HISTORY: "🗂 Oxirgi tarqatmalar",
+  EXIT: "🚪 Chiqish",
+
+  // ── Auditoriya ──────────────────────────────────────────────────
+  TO_CITIZENS: "👥 Bot foydalanuvchilariga",
+  TO_GROUPS: "💬 MFY guruhlariga",
+  TO_BOTH: "📣 Ikkalasiga",
+
+  // ── Hudud ───────────────────────────────────────────────────────
+  ALL_PROVINCE: "🌐 Butun viloyat",
+  WHOLE_DISTRICT: "🏙 Butun tuman",
+
+  // ── Uzatish usuli ───────────────────────────────────────────────
+  //
+  // ⚠️ IKKI USUL — MIJOZ TALABI: "forward qilish orqali, asl holatda
+  // ham yuborish". Forward manbani ko'rsatadi, nusxa esa botning o'z
+  // xabari bo'lib ko'rinadi.
+  MODE_FORWARD: "↪️ Uzatish (manba ko'rinadi)",
+  MODE_COPY: "📄 Asl holatda (manbasiz)",
+
+  CONFIRM: "✅ Yuborish",
+  BACK: "⬅️ Ortga",
+} as const;
+
+export const ADMIN_BUTTON_VALUES: ReadonlySet<string> = new Set(
+  Object.values(ADMIN_BUTTONS),
+);
+
+export const ADMIN_TEXTS = {
+  DENIED: [
+    "Bu bo'lim faqat tizim xodimlari uchun.",
+    "",
+    "<i>Agar siz xodim bo'lsangiz, panelda Telegram hisobingiz",
+    "bog'langanini tekshiring (Adminlar → tahrirlash → Telegram ID).</i>",
+  ].join("\n"),
+
+  MENU: (data: { name: string; scope: string }) =>
+    [
+      `<b>⚙️ Admin paneli</b> — ${escapeHtml(data.name)}`,
+      `Qamrov: <b>${escapeHtml(data.scope)}</b>`,
+      "",
+      "Bu yerdan tuman yoki MFY kesimida xabar tarqatishingiz mumkin.",
+      "",
+      "<i>Fuqaro bo'limiga qaytish uchun «🚪 Chiqish».</i>",
+    ].join("\n"),
+
+  PICK_AUDIENCE: [
+    "<b>Kimga yuboriladi?</b>",
+    "",
+    "👥 <b>Bot foydalanuvchilariga</b> — shaxsiy chatga, har kimga alohida.",
+    "💬 <b>MFY guruhlariga</b> — guruh yozishmasiga, hamma ko'radi.",
+    "",
+    "<i>Guruhga yuborilgan xabarni o'chirib bo'lmaydi.</i>",
+  ].join("\n"),
+
+  PICK_DISTRICT: "<b>Qaysi tuman?</b>",
+  PICK_MAHALLA: (district: string) =>
+    `<b>${escapeHtml(district)}</b> — MFY ni tanlang yoki butun tumanga yuboring:`,
+
+  ASK_CONTENT: [
+    "<b>Endi xabarni yuboring.</b>",
+    "",
+    "• Oddiy matn yozsangiz — u matn sifatida tarqatiladi.",
+    "• Biror xabarni <b>forward</b> qilsangiz — uni asl holida yoki",
+    "  manbasi bilan uzatish mumkin (surat, video, fayl ham bo'ladi).",
+  ].join("\n"),
+
+  PICK_MODE: [
+    "<b>Qanday yuborilsin?</b>",
+    "",
+    "↪️ <b>Uzatish</b> — xabarda «Forwarded from …» yozuvi qoladi.",
+    "📄 <b>Asl holatda</b> — manba ko'rinmaydi, xabar botdan kelgandek.",
+  ].join("\n"),
+
+  /**
+   * ⚠️ TASDIQ EKRANIDA SON KO'RSATILADI. "1 240 kishiga yuboriladi"
+   * degan raqam hudud noto'g'ri tanlanganini TO'XTATADI — usiz xato
+   * faqat yuborilgandan KEYIN bilinardi.
+   */
+  CONFIRM: (data: {
+    audience: string;
+    area: string;
+    mode: string;
+    citizens: number;
+    groups: number;
+    preview: string | null;
+  }) =>
+    [
+      "<b>Tekshiring</b>",
+      "",
+      `Kimga: <b>${escapeHtml(data.audience)}</b>`,
+      `Hudud: <b>${escapeHtml(data.area)}</b>`,
+      `Usul: <b>${escapeHtml(data.mode)}</b>`,
+      "",
+      `👥 Fuqaro: <b>${data.citizens}</b>`,
+      `💬 Guruh: <b>${data.groups}</b>`,
+      ...(data.preview
+        ? ["", "<b>Matn:</b>", `<i>${escapeHtml(truncate(data.preview, 400))}</i>`]
+        : []),
+      "",
+      "<i>Yuborilgan xabarni qaytarib bo'lmaydi.</i>",
+    ].join("\n"),
+
+  EMPTY_AUDIENCE: [
+    "Bu kesimda hech kim topilmadi.",
+    "",
+    "<i>Boshqa hudud yoki auditoriyani tanlab ko'ring.</i>",
+  ].join("\n"),
+
+  /**
+   * ⚠️ "YUBORILDI" EMAS, "BOSHLANDI": tarqatma fon'da ketadi va
+   * minglab xabar bir necha daqiqa davom etadi. "Yuborildi" deyilsa,
+   * xodim darhol natija kutib, "ishlamadi" deb o'ylardi.
+   */
+  STARTED: (total: number) =>
+    [
+      "📨 <b>Tarqatma boshlandi.</b>",
+      "",
+      `Manzillar soni: <b>${total}</b>`,
+      "",
+      "<i>Natijani «🗂 Oxirgi tarqatmalar» dan ko'rishingiz mumkin.</i>",
+    ].join("\n"),
+
+  HISTORY_EMPTY: "Hali tarqatma yuborilmagan.",
+
+  HISTORY: (
+    items: {
+      at: string;
+      audience: string;
+      area: string;
+      status: string;
+      sent: number;
+      failed: number;
+      total: number;
+      preview: string | null;
+    }[],
+  ) =>
+    [
+      "<b>🗂 Oxirgi tarqatmalar</b>",
+      "",
+      ...items.flatMap((item) => [
+        `${item.at} · <b>${escapeHtml(item.audience)}</b> · ${escapeHtml(item.area)}`,
+        `${escapeHtml(item.status)} — ${item.sent}/${item.total} yuborildi${
+          item.failed > 0 ? `, ${item.failed} xato` : ""
+        }`,
+        ...(item.preview ? [`<i>${escapeHtml(truncate(item.preview, 120))}</i>`] : []),
+        "",
+      ]),
+    ].join("\n"),
+
+  CANCELLED: "Tarqatma bekor qilindi.",
+  EXITED: "Admin bo'limidan chiqdingiz.",
+
+  NEED_CONTENT: "Avval xabarni yuboring yoki forward qiling.",
+} as const;
+
+/** Auditoriya nomlari — panel va botda AYNI atama ishlatiladi. */
+export const AUDIENCE_LABELS: Record<string, string> = {
+  citizens: "Bot foydalanuvchilari",
+  groups: "MFY guruhlari",
+  both: "Fuqarolar va guruhlar",
+};
+
+export const MODE_LABELS: Record<string, string> = {
+  text: "Matn",
+  forward: "Uzatish (manba bilan)",
+  copy: "Asl holatda",
+};
+
+export const BROADCAST_STATUS_LABELS: Record<string, string> = {
+  pending: "⏳ Navbatda",
+  sending: "📨 Yuborilmoqda",
+  done: "✅ Tugadi",
+  failed: "❌ Xato",
+};
 
 /**
  * ⚠️ HTML QALQONI: fuqaro matni `parse_mode: "HTML"` bilan

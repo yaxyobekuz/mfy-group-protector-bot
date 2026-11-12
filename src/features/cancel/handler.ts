@@ -10,6 +10,12 @@
  *
  * ⚠️ IKKALA QORALAMA HAM tozalanadi: fuqaro qaysi oqimda turganini
  * bilmaydi va tugma har ikkisida ham bir xil ishlashi kerak.
+ *
+ * ⚠️ ADMIN OQIMI HAM TOZALANADI. Uning o'z tugmalari bor
+ * («⬅️ Ortga», «🚪 Chiqish»), lekin eski klaviatura MIJOZDA qolib
+ * ketishi mumkin: xodim «❌ Bekor qilish» ni bosib, fuqaro menyusini
+ * ko'rib turganda sessiyada admin oqimi TIRIK qolardi — va keyingi
+ * yozgan matni tarqatma mazmuni bo'lib ketardi.
  */
 
 import type { Composer } from "grammy";
@@ -25,6 +31,7 @@ export const registerCancel = (bot: Composer<BotContext>): void => {
     // o'shanda ham javob berish kerak.
     delete ctx.session.appeal;
     delete ctx.session.profile;
+    delete ctx.session.admin;
 
     await ctx.reply(TEXTS.CANCELLED, { reply_markup: mainMenu() });
   });

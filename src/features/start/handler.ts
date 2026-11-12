@@ -32,6 +32,10 @@ export const registerStart = (bot: Composer<BotContext>): void => {
     // bermasligi kerak.
     delete ctx.session.appeal;
     delete ctx.session.profile;
+    // ⚠️ ADMIN OQIMI HAM: `/start` — "boshidan boshlaymiz" degani
+    // va bu handler `registerAdmin` DAN OLDIN ro'yxatdan o'tadi
+    // (`main.ts`), ya'ni u yerda tozalanmaydi.
+    delete ctx.session.admin;
 
     const result = await citizenStart(identityOf(ctx));
 
@@ -59,6 +63,7 @@ export const registerStart = (bot: Composer<BotContext>): void => {
     // ketilganini bildiradi (`appeal/handler.ts` izohi).
     delete ctx.session.appeal;
     delete ctx.session.profile;
+    delete ctx.session.admin;
 
     await ctx.reply(TEXTS.HELP, { parse_mode: "HTML", reply_markup: mainMenu() });
   });
