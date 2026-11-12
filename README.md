@@ -1,4 +1,4 @@
-# Viloyat shtabi — Bot
+# E Murojaat — Bot
 
 MFY guruhlarini **kuzatuvchi** va xodimlardan **muammo qabul qiluvchi**
 Telegram bot.

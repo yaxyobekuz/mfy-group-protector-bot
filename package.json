@@ -1,7 +1,7 @@
 {
-  "name": "viloyat-shtabi-bot",
+  "name": "e-murojaat-bot",
   "version": "0.1.0",
-  "description": "Viloyat shtabi — MFY guruhlarini kuzatuvchi va muammo qabul qiluvchi Telegram bot",
+  "description": "E Murojaat — MFY guruhlarini kuzatuvchi va muammo qabul qiluvchi Telegram bot",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
