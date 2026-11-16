@@ -26,22 +26,32 @@
  * hodisalarni qayta yubormaydi. Shu sababli zaxira yo'l bor:
  * aksariyat guruhda kunda xabar bo'ladi, ya'ni ro'yxat o'zi to'lib
  * boradi.
+ *
+ * ── KANAL HAM KUZATILADI, LEKIN BOSHQA HODISA BILAN ───────────────────
+ *
+ * ⚠️ KANAL POSTI `message` EMAS, `channel_post`: Telegram ularni
+ * ALOHIDA hodisa turi sifatida yuboradi. Faqat `message` tinglansa,
+ * kanaldagi butun kuzatuv JIMGINA ishlamasdi — panelda "0 signal"
+ * turardi va u "kanalda muammo yo'q" degan xulosaga o'xshardi
+ * (`normalizeSignal` dagi `#102` tuzog'i bilan ayni shakldagi
+ * nosozlik).
+ *
+ * ⚠️ KUZATUV IKKI TURDA AYNI, QALQON ESA FAQAT GURUHDA
+ * (`shared/chat-type.ts`): kanalda zararli kontentni o'sha
+ * kanalning O'Z admini yozadi, ya'ni o'chirish ma'nosini yo'qotadi.
+ *
+ * ⚠️ KANAL POSTIDA `ctx.from` YO'Q (muallif — kanalning o'zi,
+ * `sender_chat`) va bu XATO EMAS: `senderTgId`/`senderName` bo'sh
+ * qoladi, server esa ularni ixtiyoriy deb biladi. "Muallif
+ * majburiy" deb tekshirilsa, har kanal posti tashlanib ketardi.
  */
 
 import type { Composer } from "grammy";
 
 import { captureMessage, recordMembership, touchGroup } from "../../shared/api";
 import { forgetDeleteRight } from "../guard/delete-failure";
+import { WATCHED_CHAT_TYPES } from "../../shared/chat-type";
 import type { BotContext } from "../../shared/context";
-
-/**
- * Kuzatiladigan chat turlari.
- *
- * ⚠️ `private` ATAYLAB YO'Q: shaxsiy chat — bu bog'lanish va
- * "muammo yuborish" oqimi, guruh emas. Uni bu yerga qo'shish har
- * foydalanuvchining shaxsiy yozishmasini navbatga yuborardi.
- */
-const GROUP_TYPES = new Set(["group", "supergroup", "channel"]);
 
 /**
  * RASMIY GURUHLAR KESHI — `chatId` → `{ isOfficial, at }`.
@@ -159,7 +169,7 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
 
   bot.on("my_chat_member", async (ctx) => {
     const chat = ctx.myChatMember.chat;
-    if (!GROUP_TYPES.has(chat.type)) return;
+    if (!WATCHED_CHAT_TYPES.has(chat.type)) return;
 
     const member = ctx.myChatMember.new_chat_member;
     const chatId = String(chat.id);
@@ -209,27 +219,49 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
   });
 
   // ═════════════════════════════════════════════════════════════════
-  //  2. GURUHDAGI XABAR — kuzatuv
+  //  2. GURUH XABARI VA KANAL POSTI — kuzatuv
   // ═════════════════════════════════════════════════════════════════
 
-  bot.on("message", async (ctx, next) => {
+  /**
+   * ⚠️ IKKI HODISA, BITTA TANA. Telegram guruh xabarini `message`,
+   * kanal postini `channel_post` deb yuboradi — lekin ikkisining
+   * MAZMUNI bir xil (`Message`) va kuzatuv ikkisi uchun AYNI
+   * bo'lishi kerak.
+   *
+   * ⚠️ NUSXALANMAYDI: ikki handler yozilsa, ularning biri albatta
+   * eskirardi (masalan `MAX_TEXT` faqat bittasida o'zgarardi) va
+   * kanal postlari jimgina boshqa qoidalar bilan yozilib ketardi.
+   *
+   * ⚠️ `ctx.msg` ISHLATILADI, `ctx.message` EMAS: grammY'da `msg`
+   * ikkalasini ham qaytaradi va shu sababdan bu funksiya ikki
+   * hodisa uchun ham ishlaydi.
+   */
+  const watchPost = async (
+    ctx: BotContext,
+    next: () => Promise<void>,
+  ): Promise<void> => {
     const chat = ctx.chat;
+    const post = ctx.msg;
 
-    // Shaxsiy chat — boshqa oqim (`issue-submit`).
-    if (!GROUP_TYPES.has(chat.type)) return next();
+    // Shaxsiy chat — boshqa oqim (murojaat yuborish).
+    if (!chat || !post || !WATCHED_CHAT_TYPES.has(chat.type)) return next();
 
     const chatId = String(chat.id);
 
     // ⚠️ BOT YOZGAN XABAR TAHLIL QILINMAYDI: hisobot yoki boshqa
     // botning xabari "guruhda muammo bor" degan signalga aylanib
     // ketardi.
+    //
+    // ⚠️ KANAL POSTIDA `ctx.from` UMUMAN YO'Q (muallif —
+    // kanalning o'zi) va o'shanda shart ishlamaydi — to'g'risi
+    // ham shu: kanalning posti kuzatilishi KERAK.
     if (ctx.from?.is_bot) return;
 
     // ⚠️ MATN BO'LMASA YOZILMAYDI. Stiker, rasm, ovozli xabar va
     // xizmat xabarlari (kirdi/chiqdi) tahlilga hech narsa
     // bermaydi, lekin navbatni va AI hisobini shishirardi. Rasm
     // IZOHI (`caption`) esa matn — u olinadi.
-    const text = (ctx.message.text ?? ctx.message.caption ?? "").trim();
+    const text = (post.text ?? post.caption ?? "").trim();
 
     // ── REYESTR ─────────────────────────────────────────────────
     //
@@ -264,13 +296,13 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
 
     // ── KUZATUV ─────────────────────────────────────────────────
     //
-    // ⚠️ FAQAT RASMIY GURUHDAN. Reyestrda bot tasodifan qo'shilgan,
-    // test va umuman begona guruhlar ham bor — ularning
+    // ⚠️ FAQAT RASMIY GURUH/KANALDAN. Reyestrda bot tasodifan
+    // qo'shilgan, test va umuman begona chatlar ham bor — ularning
     // yozishmasini o'qish mumkin emas. "Rasmiy" belgisi ma'muriyat
     // qo'lida va aynan shu KUZATUVGA ROZILIK ma'nosini bildiradi.
     if (!isOfficial || !text) return;
 
-    const replyTo = ctx.message.reply_to_message;
+    const replyTo = post.reply_to_message;
     const replyToText = replyTo
       ? (replyTo.text ?? replyTo.caption ?? "").trim().slice(0, MAX_TEXT) || undefined
       : undefined;
@@ -283,7 +315,7 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
 
     const captured = await captureMessage({
       chatId,
-      messageId: String(ctx.message.message_id),
+      messageId: String(post.message_id),
       senderTgId: sender?.id ? String(sender.id) : undefined,
       senderName,
       text: text.slice(0, MAX_TEXT),
@@ -291,11 +323,26 @@ export const registerGroupWatch = (bot: Composer<BotContext>): void => {
       // ⚠️ Telegram `date` — SONIYADA. Server uni
       // `new Date(sentAt * 1000)` bilan o'qiydi; millisekund deb
       // yuborilsa sana 1970-yilga tushib qolardi.
-      sentAt: ctx.message.date,
+      sentAt: post.date,
     });
 
     if (!captured.ok) {
       console.error(`[group-watch] ${chatId} xabar yuborilmadi: ${captured.error}`);
     }
-  });
+  };
+
+  bot.on("message", watchPost);
+
+  /**
+   * ⚠️ KANAL POSTI ALOHIDA RO'YXATDAN O'TADI: `bot.on("message")`
+   * `channel_post` ni UMUMAN ushlamaydi. Bu qator bo'lmaganda
+   * kanalda kuzatuv jimgina ishlamasdi — bot kanalda admin, panel
+   * esa "0 signal" ko'rsatardi.
+   *
+   * ⚠️ TAHRIRLANGAN POST OLINMAYDI (`edited_channel_post` yo'q):
+   * `GroupMessage` — `(chatId, messageId)` bo'yicha YAGONA va
+   * tahrir eski matnni qayta yozardi; tahlil qilingan post esa
+   * boshqa signal berib, panelda ikkinchi marta paydo bo'lardi.
+   */
+  bot.on("channel_post", watchPost);
 };

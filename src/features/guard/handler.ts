@@ -27,6 +27,26 @@
  * himoya qiladi. Guruh kuzatuvga yopiq bo'lsa ham undagi odamlarni
  * virusdan himoya qilish mumkin, shuning uchun ikki belgi ALOHIDA
  * (`TelegramGroup.guardEnabled`).
+ *
+ * ── KANALDA QALQON UMUMAN ISHGA TUSHMAYDI ────────────────────────────
+ *
+ * ⚠️ KANALDA ZARARLI KONTENTNI O'SHA KANALNING O'Z ADMINI YOZADI:
+ * guruhda qalqon begona odamdan (firibgardan) aholini himoya qiladi,
+ * kanalda esa "himoya qilinadigan" va "tahdid soladigan" tomon BIR
+ * XIL bo'lib qoladi — ya'ni bot ma'muriyatning o'z e'lonini
+ * o'chirishga urinardi. Rais e'lonida havola bo'lishi esa ODATIY
+ * hol.
+ *
+ * ⚠️ TEKSHIRUV `channel_post` NI RO'YXATGA OLMASLIK BILAN
+ * CHEKLANMAYDI: `chat.type` ham tekshiriladi. Sabab — kanalga
+ * ulangan muhokama guruhidagi xabar `message` bo'lib keladi va
+ * bir kun kelib `channel_post` ni ham shu handler'ga ulash
+ * vasvasasi paydo bo'lishi mumkin. Shart ikki qavat bo'lsa, o'sha
+ * o'zgarish qalqonni kanalga ochib yubormaydi.
+ *
+ * ⚠️ KUZATUVGA O'TADI (`next()`), TO'XTAMAYDI: kanal posti AI
+ * tahliliga borishi KERAK — signal oqimi kanalda ham ishlaydi
+ * (`shared/chat-type.ts`).
  */
 
 import type { Composer } from "grammy";
@@ -36,8 +56,7 @@ import type { BotContext } from "../../shared/context";
 import { feedHosts, refreshBlocklist } from "./blocklist";
 import { diagnoseDeleteFailure } from "./delete-failure";
 import { inspectFile, inspectText, inspectUrl, type ThreatVerdict } from "./detect";
-
-const GROUP_TYPES = new Set(["group", "supergroup", "channel"]);
+import { guardApplies, WATCHED_CHAT_TYPES } from "../../shared/chat-type";
 
 /**
  * QALQON SOZLAMASI KESHI — `chatId` → `{ config, at }`.
@@ -75,7 +94,18 @@ export const registerGuard = (bot: Composer<BotContext>): void => {
     const chat = ctx.chat;
 
     // Shaxsiy chat — qalqon u yerda ishlamaydi (guruh emas).
-    if (!GROUP_TYPES.has(chat.type)) return next();
+    if (!WATCHED_CHAT_TYPES.has(chat.type)) return next();
+
+    /**
+     * ⚠️ KANAL — QALQONDAN TASHQARIDA (fayl boshidagi doktrina).
+     * Bu BIRINCHI shart: sozlama ham so'ralmaydi, qora ro'yxat ham
+     * yangilanmaydi, hodisa ham yozilmaydi. Server baribir rad
+     * etadi (`security.service.ts#report`), lekin botda ham
+     * to'xtatish KERAK — aks holda har kanal posti uchun bekorga
+     * HTTP so'rov ketardi va server yiqilgan paytda eski kesh
+     * bo'yicha o'chirish urinishi ham bo'lib ketardi.
+     */
+    if (!guardApplies(chat.type)) return next();
 
     const chatId = String(chat.id);
 
