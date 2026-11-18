@@ -57,11 +57,38 @@ const INSTALLER_EXTENSIONS = new Set([
 ]);
 
 /**
- * ⚠️ ARXIV O'Z-O'ZIDAN ZARARLI EMAS (MFY xodimi hujjatlarni zip
- * qilishi mumkin), lekin u o'rnatma faylni YASHIRISHNING eng keng
- * tarqalgan yo'li — shuning uchun "noma'lum tur".
+ * ARXIVLAR — O'CHIRILMAYDI (serverdagi ko'zgu bilan AYNI).
+ *
+ * ⚠️ QOIDA OLIB TASHLANDI, TIRIK SHIKOYATDAN KEYIN (2026-11-18):
+ * oddiy `.zip` fayllar jimgina o'chib ketardi. Arxiv o'z-o'zidan
+ * zararli EMAS — MFY xodimi hujjatlarni zip qilib tashlaydi, bot
+ * esa ogohlantirish yozmaydi, ya'ni yo'qolgan hisobotni hech kim
+ * izlab topmasdi ("shubhada — tegilmaydi").
+ *
+ * ⚠️ HIMOYA YO'QOLMADI: `.apk`, `.exe` va ikki kengaytmali nom
+ * baribir ushlanadi. Arxiv ICHINI bot umuman ko'ra olmaydi.
  */
-const ARCHIVE_EXTENSIONS = new Set(["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]);
+
+/**
+ * HECH QACHON O'CHIRILMAYDIGAN HOSTLAR — serverdagi
+ * `ALWAYS_ALLOWED_HOSTS` ning KO'ZGUSI (botda import yo'q).
+ *
+ * ⚠️ TASHQI RO'YXATLAR XATO QILADI: 392 000 yozuvli
+ * Phishing.Database ichida `telegra.ph` va 333 ta `.uz` domeni bor
+ * edi. Bitta xato yozuv o'sha havolali har xabarni o'chirardi.
+ *
+ * ⚠️ IKKALASI BIRGA TAHRIRLANADI (doktrina) va buni
+ * `tools/threat-rules.check.ts` tekshiradi.
+ */
+const ALWAYS_ALLOWED_HOSTS: readonly string[] = [
+  "t.me", "telegram.me", "telegram.org", "telegram.dog", "telegra.ph",
+  // ⚠️ `gov.uz` BOR, YALANG'OCH `uz` YO'Q: suffiks bo'yicha
+  // solishtiriladi va `uz` butun zonani ochib qo'yardi.
+  "gov.uz",
+  "youtube.com", "youtu.be", "instagram.com", "facebook.com", "fb.com",
+  "tiktok.com", "vk.com", "ok.ru", "linkedin.com", "x.com", "twitter.com",
+  "google.com", "apple.com", "microsoft.com",
+];
 
 const URL_SHORTENERS = new Set([
   "bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly",
@@ -230,10 +257,6 @@ export const inspectFile = (
     return { kind: "apk_file", reason: `installer_mime:${mime}` };
   }
 
-  if (ext && ARCHIVE_EXTENSIONS.has(ext)) {
-    return { kind: "unknown_file", reason: `archive_extension:${ext}` };
-  }
-
   /**
    * ⚠️ IKKI KENGAYTMALI NOM (`hujjat.apk.pdf`): odam oxirgisini
    * o'qiydi, lekin ichkarida o'rnatma fayl nomi yashiringan —
@@ -265,6 +288,11 @@ export const inspectUrl = (
   if (!host) return null;
 
   if (hostMatches(host, rules.allowedHosts)) return null;
+
+  // ⚠️ KODDAGI OQ RO'YXAT SOZLAMADAGIDAN ALOHIDA: `guardAllowedHosts`
+  // bo'sh bo'lishi mumkin, bu esa "qanday sozlasa ham buzilmaydi"
+  // degan zamin (yuqoridagi izoh).
+  if (hostMatches(host, ALWAYS_ALLOWED_HOSTS)) return null;
 
   if (hostMatches(host, rules.blockedHosts)) {
     return { kind: "suspicious_url", reason: "blocked_host", url, urlHost: host };
