@@ -456,28 +456,6 @@ export const adminMe = (telegramId: string) =>
     body: { telegramId },
   });
 
-/**
- * TASHKILOTNI TELEGRAM'GA ULAYDI — bir martalik kod bilan.
- *
- * ── NIMA UCHUN KOD, CHAT ID EMAS ──────────────────────────────────────
- *
- * ⚠️ ODDIY ODAM O'Z CHAT ID'SINI BILMAYDI va uni topish yo'li ham oson
- * emas. Panelda qo'lda yozdirilsa, tashkilot rahbari "chat id" degan
- * so'zni tushunmay, ma'muriyatga qayta qo'ng'iroq qilardi. Kod bilan
- * esa manzilni TELEGRAM aytadi (`message.from.id`) — ya'ni xato yozish
- * imkoni yo'q.
- *
- * ⚠️ `organizationId` YUBORILMAYDI, FAQAT KOD: bot aytgan id ga
- * ishonilsa, `X-Bot-Key` tarqalgan holatda u begona tashkilotning
- * xabarnomalarini o'z chatiga burish yo'li bo'lardi
- * (`bot-citizens` va `bot/admin` dagi AYNI qoida).
- */
-export const linkOrganization = (telegramId: string, code: string) =>
-  request<{ organizationName: string }>("/bot/organizations/link", {
-    method: "POST",
-    body: { telegramId, code },
-  });
-
 export const adminTerritory = (telegramId: string) =>
   request<Territory>("/bot/admin/territory", {
     method: "POST",

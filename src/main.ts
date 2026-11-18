@@ -7,10 +7,9 @@
  *   2. guruh kuzatuvi     — guruh/kanal xabarlari bu yerda TUGAYDI
  *   3. buyruqlar          — /start, /help (faqat shaxsiy chat)
  *   4. bekor qilish       — HAR QANDAY oqimni to'xtatadi
- *  4.5 admin paneli      — tarqatma (FAQAT xodim, /admin bilan)
- *  4.6 tashkilot ulanishi — /ulash <KOD> (xabarnoma manzili)
  *   5. murojaatlarim      — ro'yxat (oqimsiz, bitta tugma)
  *   6. profil             — hudud/telefon oqimi
+ *  6.5 admin paneli      — tarqatma (FAQAT xodim, /admin bilan)
  *   7. murojaat oqimi     — telefon → matn → yo'nalish → surat → joy
  *   8. tanilmagan xabar   — "tushunilmadi"
  *
@@ -32,7 +31,6 @@ import { initialSession, type BotContext, type SessionData } from "./shared/cont
 import { TEXTS } from "./shared/texts";
 import { mainMenu } from "./shared/keyboards";
 import { registerAdmin } from "./features/admin/handler";
-import { registerOrgLink } from "./features/org-link/handler";
 import { registerGroupWatch } from "./features/group-watch/handler";
 import { registerGuard } from "./features/guard/handler";
 import { registerAppeal } from "./features/appeal/handler";
@@ -110,18 +108,6 @@ registerCancel(privateChat);
 // buyruqlar ro'yxatida KO'RINMAYDI — tanilmagan odam uchun bu
 // mavjud bo'lmagan buyruq.
 registerAdmin(privateChat);
-
-// 4.6. Tashkilot ulanishi — `/ulash <KOD>`.
-//
-// ⚠️ MUROJAAT OQIMIDAN OLDIN (admin paneli bilan AYNI sabab): kod
-// buyruq bilan birga keladi, lekin buyruqsiz yozilgan matn murojaat
-// matni bo'lib qolishi kerak — ya'ni bu handler o'z buyrug'idan
-// boshqa HECH NARSANI ushlamaydi va sessiyada holat ham saqlamaydi.
-//
-// ⚠️ `privateChat` GA: to'g'ridan-to'g'ri `bot` ga qo'shilsa, u MFY
-// guruhida ham javob yozib, "bot guruhda hech narsa yozmaydi"
-// doktrinasini buzardi.
-registerOrgLink(privateChat);
 
 // 5. Murojaatlarim — oqimsiz, faqat bitta tugma.
 registerMyAppeals(privateChat);

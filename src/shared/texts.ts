@@ -566,50 +566,6 @@ export const ADMIN_TEXTS = {
   NEED_CONTENT: "Avval xabarni yuboring yoki forward qiling.",
 } as const;
 
-/**
- * TASHKILOT ULANISHI — `/ulash <KOD>`.
- *
- * ⚠️ MATNLAR SHU FAYLDA, handler ichida EMAS (`TEXTS` va
- * `ADMIN_TEXTS` bilan AYNI qoida): bot matnini o'zgartirish uchun
- * kodni kovlash kerak bo'lmasligi kerak va bitta matn ikki joyda
- * yozilsa, bittasi albatta eskirardi.
- */
-export const ORG_TEXTS = {
-  ASK_CODE: [
-    "<b>Tashkilotni ulash</b>",
-    "",
-    "Kodni buyruq bilan birga yuboring:",
-    "<code>/ulash ABC123</code>",
-    "",
-    "<i>Kodni ma'muriyat panelda yasab beradi.</i>",
-  ].join("\n"),
-
-  LINKED: (name: string) =>
-    [
-      `✅ <b>${escapeHtml(name)}</b> shu chatga ulandi.`,
-      "",
-      "Endi tashkilotingizga yo'naltirilgan har yangi murojaat haqida",
-      "shu yerga xabar keladi.",
-      "",
-      // ⚠️ CHEGARA DARHOL AYTILADI: aks holda tashkilot xabarga
-      // javob yozib, uni fuqaro o'qiydi deb o'ylardi — bot esa
-      // javobni hech qayerga uzatmaydi.
-      "<i>Bu chatga javob yozilmaydi. Ishni bajargach, panelda",
-      "«Bajarildi» deb belgilang — rasmiy javobni shtab yozadi.</i>",
-    ].join("\n"),
-
-  /**
-   * ⚠️ "KOD XATO" VA "TASHKILOT ARXIVLANGAN" — AYNI JAVOB
-   * (serverda ham): ikkisini ajratib ko'rsatish begona odamga
-   * "bu kod tizimda bor" degan ma'lumot berardi.
-   */
-  FAILED: [
-    "Kod topilmadi yoki allaqachon ishlatilgan.",
-    "",
-    "<i>Ma'muriyatdan yangi kod so'rang.</i>",
-  ].join("\n"),
-} as const;
-
 /** Auditoriya nomlari — panel va botda AYNI atama ishlatiladi. */
 export const AUDIENCE_LABELS: Record<string, string> = {
   citizens: "Bot foydalanuvchilari",
